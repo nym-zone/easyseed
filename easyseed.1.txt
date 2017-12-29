@@ -1,13 +1,13 @@
 EASYSEED(1)                 General Commands Manual                EASYSEED(1)
 
-NNAAMMEE
-     eeaassyysseeeedd – Bitcoin BIP 39 mnemonic seed phrase generator
+NAME
+     easyseed – Bitcoin BIP 39 mnemonic seed phrase generator
 
-SSYYNNOOPPSSIISS
-     eeaassyysseeeedd --bb _b_i_t_s [--kk _k_e_y_f_i_l_e]
+SYNOPSIS
+     easyseed -b bits [-k keyfile]
 
-DDEESSCCRRIIPPTTIIOONN
-     eeaassyysseeeedd is a BIP 39 Bitcoin seed phrase generator which is intended to
+DESCRIPTION
+     easyseed is a BIP 39 Bitcoin seed phrase generator which is intended to
      be portable and auditable, with minimal dependencies and easy-to-read
      source code.  The intended use case is seed phrase generation on an
      airgap machine.  To protect safety of user funds, a battery of standard
@@ -18,26 +18,26 @@ DDEESSCCRRIIPPTTIIOONN
 
      The options are as follows:
 
-     --bb _b_i_t_s            Generate a mnemonic phrase representing a seed with
-                        _b_i_t_s bits.  Valid values for _b_i_t_s and the word length
+     -b bits            Generate a mnemonic phrase representing a seed with
+                        bits bits.  Valid values for bits and the word length
                         they produce are as follows:
 
-                        BBiittss   WWoorrddss
+                        Bits   Words
                         128     12
                         160     15
                         192     18
                         224     21
                         256     24
 
-     --kk _k_e_y_f_i_l_e         Read key material in the form of binary octets from
-                        the specified _k_e_y_f_i_l_e.  TThhee aaccttuuaall lleennggtthh ooff kkeeyymmaatt
-                        pprroovviiddeedd mmuusstt mmaattcchh tthhee ssppeecciiffiieedd nnuummbbeerr ooff bbiittss.. Use
-                        _- to specify standard input.
+     -k keyfile         Read key material in the form of binary octets from
+                        the specified keyfile.  The actual length of keymat
+                        provided must match the specified number of bits. Use
+                        - to specify standard input.
 
-EEXXIITT SSTTAATTUUSS
-     The eeaassyysseeeedd utility exits 0 on success, and >0 if an error occurs.
+EXIT STATUS
+     The easyseed utility exits 0 on success, and >0 if an error occurs.
 
-EEXXAAMMPPLLEESS
+EXAMPLES
      Generate a 24-word mnemonic representing a 256-bit random seed:
 
            umask 077
@@ -49,48 +49,48 @@ EEXXAAMMPPLLEESS
      or
            easyseed -b 256 -k - < secret.key > myseed.txt
 
-SSTTAANNDDAARRDDSS
-     The eeaassyysseeeedd utility conforms to Bitcoin _B_I_P _3_9:
-           hhttttppss::////ggiitthhuubb..ccoomm//bbiittccooiinn//bbiippss//bblloobb//mmaasstteerr//bbiipp--00003399..mmeeddiiaawwiikkii.
+STANDARDS
+     The easyseed utility conforms to Bitcoin BIP 39:
+           https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki.
 
-AAUUTTHHOORRSS
-     By nullius <_n_u_l_l_i_u_s_@_n_y_m_._z_o_n_e>.
+AUTHORS
+     By nullius <nullius@nym.zone>.
 
      PGP: 0xC2E91CD74A4C57A105F6C21B5A00591B2F307E0C
 
-     Tips: _3_N_U_L_L_3_Z_C_U_X_r_7_R_D_L_x_X_e_L_P_D_M_Z_D_Z_Y_x_u_a_Y_k_C_n_G:
-           bbiittccooiinn::33NNUULLLL33ZZCCUUXXrr77RRDDLLxxXXeeLLPPDDMMZZDDZZYYxxuuaaYYkkCCnnGG.
+     Tips: 3NULL3ZCUXr7RDLxXeLPDMZDZYxuaYkCnG:
+           bitcoin:3NULL3ZCUXr7RDLxXeLPDMZDZYxuaYkCnG.
 
-CCAAVVEEAATTSS
+CAVEATS
      Most users are apparently still generating airgap seed phrases with
      Javascript-based seed phrase generators.  Adequate random number
      generation is impossible from within Javascript.  Users should use the
-     eeaassyysseeeedd utility instead.
+     easyseed utility instead.
 
-BBUUGGSS
+BUGS
      Thus far, only English-language seed phrases are supported.  A future
      version will add support for all languages which have official wordlists
-     in the Bitcoin BIP repository.  To add your language to the eeaassyysseeeedd
+     in the Bitcoin BIP repository.  To add your language to the easyseed
      utility, add a wordlist for your language to the BIP 39 wordlist set.
 
-SSEECCUURRIITTYY CCOONNSSIIDDEERRAATTIIOONNSS
+SECURITY CONSIDERATIONS
      For secure seed phrase generation, it is imperative to use an adequate
-     CSPRNG as a source of randomness.  The eeaassyysseeeedd utility draws randomness
-     off the system's random(4) device.  To avoid blocking on Linux, eeaassyysseeeedd
-     reads off _/_d_e_v_/_u_r_a_n_d_o_m.  The author deems this to be adequate.  On other
-     reasonable systems, such as FreeBSD, _/_d_e_v_/_u_r_a_n_d_o_m is a symlink to
-     _/_d_e_v_/_r_a_n_d_o_m; thus, this is a non-issue.
+     CSPRNG as a source of randomness.  The easyseed utility draws randomness
+     off the system's random(4) device.  To avoid blocking on Linux, easyseed
+     reads off /dev/urandom.  The author deems this to be adequate.  On other
+     reasonable systems, such as FreeBSD, /dev/urandom is a symlink to
+     /dev/random; thus, this is a non-issue.
 
-     eeaassyysseeeedd performs basic sanitization to zeroize and remove keymat (key
+     easyseed performs basic sanitization to zeroize and remove keymat (key
      material) from memory.  It also uses write(2) to output the seed phrase,
      so as to avoid any userland buffering in printf(3).  However, this does
      nothing to prevent secret bits from being left in the memory areas used
      by the kernel for file or pipe buffers.
 
      In proper use on a dedicated airgap machine, this should be of lesser
-     concern than on a multiuser and/or networked system.  eeaassyysseeeedd will leave
+     concern than on a multiuser and/or networked system.  easyseed will leave
      far less data remanence than most other software which deals with secret
-     keys.  Also, eeaassyysseeeedd is far superior to utilities written in Javascript
+     keys.  Also, easyseed is far superior to utilities written in Javascript
      and similar, which have absolutely no control of garbage collection and
      memory release.
 

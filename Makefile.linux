@@ -2,6 +2,8 @@ CFLAGS+=-O2 -std=c99
 
 LDADD=-lcrypto
 
+SEDRE=-r
+
 all: easyseed
 
 include Makefile.inc

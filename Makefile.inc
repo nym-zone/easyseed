@@ -17,7 +17,10 @@ $(PROG).$(MANSEC).html: $(PROG).$(MANSEC)
 #	mandoc -I os=Bitcoin -T markdown $< > $@
 
 $(PROG).$(MANSEC).txt: $(PROG).$(MANSEC)
-	mandoc -I os=Bitcoin -T utf8 $< > $@
+	# XXX: Ridiculous kludge around make/shell quoting issues which
+	# prevent me from simply using sed expression $'s/[^\b]\b//g' :
+	mandoc -I os=Bitcoin -T utf8 $< | \
+		tr '\b' '^' | sed $(SEDRE) -e 's/[^^]\^//g' > $@
 
 english.c: english.txt
 	echo "const char *english[2048] = {" > $@

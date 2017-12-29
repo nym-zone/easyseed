@@ -1,0 +1,14 @@
+CFLAGS+=-O2 -std=c99
+
+LDADD=-lcrypto
+
+all: easyseed
+
+include Makefile.inc
+
+easyseed: $(OBJS)
+	cc -o $@ $(OBJS) $(LDADD)
+
+install:
+	install $(PROG) /usr/local/bin
+	install $(PROG).$(MANSEC) /usr/local/man/man1

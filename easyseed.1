@@ -1,0 +1,177 @@
+.\" By nullius <nullius@nym.zone>
+.\" PGP: 0xC2E91CD74A4C57A105F6C21B5A00591B2F307E0C
+.\" Bitcoin: 3NULL3ZCUXr7RDLxXeLPDMZDZYxuaYkCnG
+.\"
+.\" Copyright (c) 2017.  All rights reserved.
+.\"
+.\" The Antiviral License (AVL) v0.0.1, with added Bitcoin clause:
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\"
+.\" 1. Redistributions of the source code must retain the above copyright
+.\"    and credit notices, this list of conditions, and the following
+.\"    disclaimer.
+.\" 2. Redistributions in binary form must reproduce the above copyright
+.\"    and credit notices, this list of conditions, and the following
+.\"    disclaimer in the documentation and/or other materials provided
+.\"    with the distribution.
+.\" 3. Derivative works hereof MUST NOT be redistributed under any license
+.\"    containing terms which require derivative works and/or usages to
+.\"    publish source code, viz. what is commonly known as a "copyleft"
+.\"    or "viral" license.
+.\" 4. Derivative works hereof which have any functionality related to
+.\"    digital money (so-called "cryptocurrency" MUST EITHER adhere to
+.\"    consensus rules fully compatible with Bitcoin Core, OR use a name
+.\"    which does not contain the word "Bitcoin".
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+.\" ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+.\" FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+.\" DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+.\" OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+.\" HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+.\" LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+.\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+.\" SUCH DAMAGE.
+.\"
+.Dd December 29, 2017
+.Dt EASYSEED 1
+.Os Bitcoin
+.Sh NAME
+.Nm easyseed
+.Nd "Bitcoin BIP 39 mnemonic seed phrase generator"
+.Sh SYNOPSIS
+.Nm
+.Fl b Ar bits
+.Op Fl k Ar keyfile
+.Sh DESCRIPTION
+.Nm
+is a BIP 39 Bitcoin seed phrase generator which is intended to be
+portable and auditable, with minimal dependencies and easy-to-read
+source code.
+The intended use case is seed phrase generation on an airgap machine.
+To protect safety of user funds, a battery of standard test vectors is
+run on every use.
+.Pp
+A seed is read off the system random device; and corresponding
+seed words are printed to standard output.
+.Pp
+The options are as follows:
+.Bl -tag -width ".Fl d Ar argument"
+.It Fl b Ar bits
+Generate a mnemonic phrase representing a seed with
+.Ar bits
+bits.
+Valid values for
+.Ar bits
+and the word length they produce are as follows:
+.Pp
+.TS
+lb lb
+c c.
+Bits	Words
+128	12
+160	15
+192	18
+224	21
+256	24
+.TE
+.It Fl k Ar keyfile
+Read key material in the form of binary octets from the specified
+.Ar keyfile .
+.Sy The actual length of keymat provided must match the specified number of bits.
+Use
+.Pa "-"
+to specify standard input.
+.El
+.Sh EXIT STATUS
+.Ex -std
+.Sh EXAMPLES
+Generate a 24-word mnemonic representing a 256-bit random seed:
+.Pp
+.Dl "umask 077"
+.Dl "easyseed -b 256 > myseed.txt"
+.Pp
+Use bits from a keyfile:
+.Dl "dd if=/dev/random of=secret.key bs=32 count=1"
+.Dl "easyseed -b 256 -k secret.key > myseed.txt"
+or
+.Dl "easyseed -b 256 -k - < secret.key > myseed.txt"
+.Sh STANDARDS
+The
+.Nm
+utility conforms to Bitcoin 
+.Lk https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki "BIP 39" .
+.Sh AUTHORS
+By
+.An nullius
+.Aq Mt nullius@nym.zone .
+.Pp
+PGP:
+.Li 0xC2E91CD74A4C57A105F6C21B5A00591B2F307E0C
+.Pp
+Tips:
+.Lk bitcoin:3NULL3ZCUXr7RDLxXeLPDMZDZYxuaYkCnG 3NULL3ZCUXr7RDLxXeLPDMZDZYxuaYkCnG .
+.Sh CAVEATS
+Most users are apparently still generating airgap seed phrases with
+Javascript-based seed phrase generators.
+Adequate random number generation is impossible from within Javascript.
+Users should use the
+.Nm
+utility instead.
+.Sh BUGS
+.\" Language support is necessarily finite.
+.\" The
+\." .Nm
+\." utility supports all languages which have official BIP 39
+\." wordlists in the Bitcoin BIP repository.
+Thus far, only English-language seed phrases are supported.
+A future version will add support for all languages which have
+official wordlists in the Bitcoin BIP repository.
+To add your language to the
+.Nm
+utility, add a wordlist for your language to the BIP 39 wordlist set.
+.Sh SECURITY CONSIDERATIONS
+For secure seed phrase generation, it is imperative to use an adequate
+CSPRNG as a source of randomness.
+The
+.Nm
+utility draws randomness off the system
+.Ap
+s
+.Xr random 4
+device.
+To avoid blocking on Linux,
+.Nm
+reads off
+.Pa /dev/urandom .
+The author deems this to be adequate.
+On other reasonable systems, such as FreeBSD,
+.Pa /dev/urandom
+is a symlink to
+.Pa /dev/random ;
+thus, this is a non-issue.
+.Pp
+.Nm
+performs basic sanitization to zeroize and remove keymat (key material)
+from memory.
+It also uses
+.Xr write 2
+to output the seed phrase, so as to avoid any userland buffering in
+.Xr printf 3 .
+However, this does nothing to prevent secret bits from being left
+in the memory areas used by the kernel for file or pipe buffers.
+.Pp
+In proper use on a dedicated airgap machine, this should be of
+lesser concern than on a multiuser and/or networked system.
+.Nm
+will leave far less data remanence than most other software which
+deals with secret keys.
+Also,
+.Nm
+is far superior to utilities written in Javascript and similar,
+which have absolutely no control of garbage collection and memory release.

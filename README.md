@@ -1,6 +1,6 @@
 # easyseed
 
-## The easy mnemonic generator for Bitcoin [BIP 39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrases.
+## The easy mnemonic generator for ![₿](img/bitcoin_32px.png) Bitcoin [BIP 39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrases.
 
 - By nullius <[nullius@nym.zone](mailto:nullius@nym.zone)>
 - PGP: [0xC2E91CD74A4C57A105F6C21B5A00591B2F307E0C](https://sks-keyservers.net/pks/lookup?op=get&search=0xC2E91CD74A4C57A105F6C21B5A00591B2F307E0C)
@@ -15,6 +15,8 @@ It has been tested on FreeBSD, my main platform, and on Linux.  [Unfortunately, 
 For further details, [RTFM](https://raw.githubusercontent.com/nym-zone/easyseed/master/easyseed.1.txt).  Yes, it has a manpage.  Software is unworthy of release if it does not have a proper manpage.
 
 License: AVL v0.0.1 with Bitcoin clause.  I would prefer to disclaim copyright, and and release things to the public domain (*the public domain is not a license, “CC0” people*).  However, this is not an ideal world.
+
+Please direct usage discussion to the [forum thread](https://bitcointalk.org/index.php?topic=2664861.0), and bugs or concrete technical matters to the issue tracker.
 
 ## Installation
 

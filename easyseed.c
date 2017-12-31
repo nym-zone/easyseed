@@ -109,7 +109,7 @@ addchk(unsigned char *buf, unsigned ent)
 
 	entbytes = ent/8;
 
-	assert(entbytes >= 16 && entbytes <= 32);
+	assert(ent == 80 || (entbytes >= 16 && entbytes <= 32));
 	SHA256_Init(&ctx);
 	SHA256_Update(&ctx, buf, entbytes);
 	SHA256_Final(hash, &ctx);
@@ -194,8 +194,11 @@ mkmnemonic(char *phrase, unsigned nbits, const unsigned char *seed,
 	unsigned idx[24], nwords;
 	size_t seedlen;
 
-	/* Equation straight from BIP 39: */
-	nwords = (nbits + nbits/32) / 11;
+	if (nbits == 80) /* Exclusively for .onion v2 address data */
+		nwords = 8;
+	else
+		/* Equation straight from BIP 39: */
+		nwords = (nbits + nbits/32) / 11;
 
 	/*
 	 * This copy is done for testing and maintenance reasons.
@@ -261,7 +264,7 @@ selftest(int T_flag)
 int
 main(int argc, char *argv[])
 {
-	int ch, keyfd = -1, error = 0, T_flag = 0;
+	int ch, keyfd = -1, error = 0, O_flag = 0, T_flag = 0;
 	size_t nbits = 0, nbytes;
 	char *keymat = NULL;
 	ssize_t rbytes, wbytes;
@@ -271,7 +274,7 @@ main(int argc, char *argv[])
 	size_t len;
 
 	opterr = 0;
-	while ((ch = getopt(argc, argv, ":b:k:T")) > -1) {
+	while ((ch = getopt(argc, argv, ":b:k:OT")) > -1) {
 		switch (ch) {
 		case 'b': /* bits */
 			/* XXX: atoi(), hahah */
@@ -279,6 +282,9 @@ main(int argc, char *argv[])
 			break;
 		case 'k':
 			keymat = optarg;
+			break;
+		case 'O':
+			O_flag = 1;
 			break;
 		case 'T':
 			T_flag = 1;
@@ -291,6 +297,10 @@ main(int argc, char *argv[])
 	switch (nbits) {
 	case 128: case 160: case 192: case 224: case 256:
 		break;
+	case 80:
+		if (O_flag)
+			break;
+		/*FALLTHROUGH*/
 	default:
 		if (!T_flag)
 			usage();

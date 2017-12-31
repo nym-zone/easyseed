@@ -70,6 +70,7 @@ struct wordlist {
 	const char *code2;
 	const char *space;
 	const char **wordlist;
+	const char *hash; /* SHA-256 */
 };
 
 static const char ascii_space[] = " ";
@@ -77,7 +78,7 @@ static const char ascii_space[] = " ";
 #include "wordlist.h"
 
 #define	LANG(name, lname, code2, space)	\
-	{ #name, lname, code2, space, name }
+	{ #name, lname, code2, space, name, name##_hash }
 
 /*
  * XXX: BUG: zh-TW and zh-CN are inaccurate descriptors.  HK Chinese use
@@ -296,10 +297,76 @@ selftest(int T_flag)
 			errors, ntests);
 		abort();
 	}
-	if (T_flag) {
+	if (T_flag)
 		fprintf(f, "%u/%u self-tests succeeded.\n", ntests, ntests);
-		exit(0);
+}
+
+/*
+ * The following function is for the purpose of sanity-checking the
+ * build system.  I fear that some platform's shell tools may mangle
+ * UTF-8.  With this function, it can be exactly verified by hand that
+ * the compiled-in wordlist is identical to the source wordlist.
+ */
+static void
+reproduce_wordlist(const struct wordlist *wl)
+{
+
+	fprintf(stderr, "%s  %s.txt\n", wl->hash, wl->name);
+	for (int i = 0; i < 2048; ++i)
+		printf("%s\n", wl->wordlist[i]);
+}
+
+static void
+selftest_wordlists(int T_flag)
+{
+	const char hex[16] = "0123456789abcdef";
+	char txthash[65], *cur;
+	unsigned char buf[32];
+	SHA256_CTX ctx;
+	unsigned errors = 0;
+	FILE *f;
+
+	f = T_flag? stdout : stderr;
+
+	for (int i = 0; i < sizeof(wordlists)/sizeof(*wordlists); ++i) {
+		SHA256_Init(&ctx);
+		for (int j = 0; j < 2048; ++j) {
+			const char *word = wordlists[i].wordlist[j];
+			SHA256_Update(&ctx, word, strlen(word));
+			/* XXX: Horrid inefficiency. */
+			SHA256_Update(&ctx, "\n", 1);
+		}
+		SHA256_Final(buf, &ctx);
+
+		cur = txthash;
+		for (int i = 0; i < 32; ++i)
+			*cur++ = hex[buf[i] >> 4], *cur++ = hex[buf[i] & 0xf];
+		*cur = '\0';
+
+		if (strncmp(wordlists[i].hash, txthash, 64) != 0) {
+			fprintf(f, "Hash failure for wordlist \"%s.txt\".  "
+				"Compile-time hash:\n%s\n"
+				"Auto-checked hash:\n%s\n",
+				wordlists[i].name, wordlists[i].hash, txthash);
+			++errors;
+		} else if (T_flag)
+			printf("%s  %s.txt\n", txthash, wordlists[i].name);
 	}
+
+	if (errors)
+		abort();
+}
+
+static void
+printlang(void)
+{
+
+	printf("# Available wordlists and selectors:\n");
+	for (int i = 0; i < sizeof(wordlists)/sizeof(*wordlists); ++i)
+		printf("\t%s: \"%s\" (%s)\n", wordlists[i].name,
+			wordlists[i].lname, wordlists[i].code2);
+
+	exit(1);
 }
 
 int
@@ -315,7 +382,7 @@ main(int argc, char *argv[])
 	size_t len;
 
 	opterr = 0;
-	while ((ch = getopt(argc, argv, ":b:k:OT")) > -1) {
+	while ((ch = getopt(argc, argv, ":LOTb:k:")) > -1) {
 		switch (ch) {
 		case 'b': /* bits */
 			/* XXX: atoi(), hahah */
@@ -324,6 +391,8 @@ main(int argc, char *argv[])
 		case 'k':
 			keymat = optarg;
 			break;
+		case 'L':
+			printlang();
 		case 'O':
 			O_flag = 1;
 			break;
@@ -351,6 +420,9 @@ main(int argc, char *argv[])
 		err(2, "open() on /dev/null");
 
 	selftest(T_flag);
+	selftest_wordlists(T_flag);
+	if (T_flag)
+		return (0);
 
 	nbytes = nbits/8;
 

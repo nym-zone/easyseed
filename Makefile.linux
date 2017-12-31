@@ -6,6 +6,8 @@ SEDRE=-r
 
 all: easyseed
 
+HASHPROG=sha256sum
+
 include Makefile.inc
 
 easyseed: wordlist.h $(OBJS)

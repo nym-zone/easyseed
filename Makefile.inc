@@ -32,7 +32,7 @@ $(PROG).$(MANSEC).txt: $(PROG).$(MANSEC)
 
 wordlist.h: wordlist/*
 	for lang in $(WORDLISTS) ; do \
-		echo "const char *$${lang}[2048] = {" ; \
+		echo "static const char *$${lang}[2048] = {" ; \
 		{ \
 			ctr=2048 ; \
 			while read w ; do \
@@ -42,6 +42,10 @@ wordlist.h: wordlist/*
 					printf '\tu8"%s",\n' "$$w" ; \
 				fi ; \
 			done < wordlist/$${lang}.txt ; \
+			printf 'static const char %s_hash[] = "%s";\n' \
+				$${lang} \
+					`$(HASHPROG) wordlist/$${lang}.txt | \
+						grep -Eo '^[0-9a-f]+'` ; \
 		} ; \
 	done > $@
 

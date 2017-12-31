@@ -22,7 +22,7 @@ $(PROG).$(MANSEC).txt: $(PROG).$(MANSEC)
 	mandoc -I os=Bitcoin -T utf8 $< | \
 		tr '\b' '^' | sed $(SEDRE) -e 's/[^^]\^//g' > $@
 
-english.c: english.txt
+english.c: wordlist/english.txt
 	echo "const char *english[2048] = {" > $@
 	while read w ; do \
 		if [ "$$w" = "zoo" ] ; then \

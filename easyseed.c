@@ -64,8 +64,49 @@
 /* Changing this will appropriately change the device used: */
 #define	DEV_RANDOM	"/dev/urandom"
 
-extern const char *english[2048];
+struct wordlist {
+	const char *name;
+	const char *lname;
+	const char *code2;
+	const char *space;
+	const char **wordlist;
+};
+
 static const char ascii_space[] = " ";
+
+#include "wordlist.h"
+
+#define	LANG(name, lname, code2, space)	\
+	{ #name, lname, code2, space, name }
+
+/*
+ * XXX: BUG: zh-TW and zh-CN are inaccurate descriptors.  HK Chinese use
+ * Traditional; overseas Chinese use both.  Suggestions from from actual
+ * Chinese people are welcome.
+ *
+ * XXX: I monkeypasted the native-written language names from sources
+ * such as Wikipedia.  Corrections are welcome.
+ *
+ * Languages are here listed in lexicographical order, according to the
+ * wordlist name in ASCII, with sole exception of the default language.
+ * The default language gets the [0] slot, for purely technical reasons.
+ * Do not bug me about this, or I will pick sides.
+ */
+static const struct wordlist wordlists[] =
+{
+	LANG(english,			u8"English",	"en",	ascii_space ),
+	LANG(chinese_simplified,	u8"汉语",	"zh-CN",ascii_space ),
+	LANG(chinese_traditional,	u8"漢語",	"zh-TW",ascii_space ),
+	LANG(french,			u8"Français",	"fr",	ascii_space ),
+	LANG(italian,			u8"Italiano",	"it",	ascii_space ),
+	LANG(japanese,			u8"日本語",	"ja",	u8"\u3000"  ),
+	LANG(korean,			u8"한국어",	"ko",	ascii_space ),
+	LANG(spanish,			u8"Español",	"es",	ascii_space )
+};
+
+#undef LANG
+
+static const struct wordlist *default_wordlist = &wordlists[0];
 
 struct testvec {
 	char *m;

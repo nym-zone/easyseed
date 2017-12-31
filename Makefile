@@ -1,4 +1,4 @@
-CSTD=c99
+CSTD=c11
 LDADD=-lmd
 
 SEDRE=-E

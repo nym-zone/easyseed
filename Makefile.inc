@@ -1,8 +1,16 @@
 PROG=easyseed
 MANSEC=1
 OBJS=	$(PROG).o \
-	english.o \
 	vectors.o
+
+WORDLISTS=	chinese_simplified \
+		chinese_traditional \
+		english \
+		french \
+		italian \
+		japanese \
+		korean \
+		spanish
 
 #manfmt: $(PROG).$(MANSEC).html $(PROG).$(MANSEC).md $(PROG).$(MANSEC).txt
 manfmt: $(PROG).$(MANSEC).html $(PROG).$(MANSEC).txt
@@ -22,18 +30,23 @@ $(PROG).$(MANSEC).txt: $(PROG).$(MANSEC)
 	mandoc -I os=Bitcoin -T utf8 $< | \
 		tr '\b' '^' | sed $(SEDRE) -e 's/[^^]\^//g' > $@
 
-english.c: wordlist/english.txt
-	echo "const char *english[2048] = {" > $@
-	while read w ; do \
-		if [ "$$w" = "zoo" ] ; then \
-			printf '\t"%s"\n};\n' "$$w" ; \
-		else \
-			printf '\t"%s",\n' "$$w" ; \
-		fi ; \
-	done < $< >> $@
+wordlist.h: wordlist/*
+	for lang in $(WORDLISTS) ; do \
+		echo "const char *$${lang}[2048] = {" ; \
+		{ \
+			ctr=2048 ; \
+			while read w ; do \
+				if [ $$((ctr -= 1)) -eq 0 ] ; then \
+					printf '\tu8"%s"\n};\n' "$$w" ; \
+				else \
+					printf '\tu8"%s",\n' "$$w" ; \
+				fi ; \
+			done < wordlist/$${lang}.txt ; \
+		} ; \
+	done > $@
 
 clean:
-	rm -f $(PROG) $(OBJS) english.c \
+	rm -f $(PROG) $(OBJS) wordlist.h \
 		$(PROG).$(MANSEC).html $(PROG).$(MANSEC).md $(PROG).$(MANSEC).txt
 
 check: $(PROG)

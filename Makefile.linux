@@ -1,4 +1,4 @@
-CFLAGS+=-O2 -std=c99
+CFLAGS+=-O2 -std=c11
 
 LDADD=-lcrypto
 
@@ -8,7 +8,7 @@ all: easyseed
 
 include Makefile.inc
 
-easyseed: $(OBJS)
+easyseed: wordlist.h $(OBJS)
 	cc -o $@ $(OBJS) $(LDADD)
 
 install:

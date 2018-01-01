@@ -29,7 +29,41 @@
     <td><b class="Nm" title="Nm">easyseed</b></td>
     <td><b class="Fl" title="Fl">-b</b> <var class="Ar" title="Ar">bits</var>
       [<span class="Op"><b class="Fl" title="Fl">-k</b>
-      <var class="Ar" title="Ar">keyfile</var></span>]</td>
+      <var class="Ar" title="Ar">keyfile</var></span>]
+      [<span class="Op"><b class="Fl" title="Fl">-l</b>
+      <var class="Ar" title="Ar">lang</var></span>]
+    <div class="Pp"></div>
+    List languages:</td>
+  </tr>
+</table>
+<div class="Pp"></div>
+<br/>
+<table class="Nm">
+  <tr>
+    <td><b class="Nm" title="Nm">easyseed</b></td>
+    <td><b class="Fl" title="Fl">-L</b>
+    <div class="Pp"></div>
+    Print wordlist:</td>
+  </tr>
+</table>
+<div class="Pp"></div>
+<br/>
+<table class="Nm">
+  <tr>
+    <td><b class="Nm" title="Nm">easyseed</b></td>
+    <td><b class="Fl" title="Fl">-P</b>
+      [<span class="Op"><b class="Fl" title="Fl">-l</b>
+      <var class="Ar" title="Ar">lang</var></span>]
+    <div class="Pp"></div>
+    Full, verbose self-tests:</td>
+  </tr>
+</table>
+<div class="Pp"></div>
+<br/>
+<table class="Nm">
+  <tr>
+    <td><b class="Nm" title="Nm">easyseed</b></td>
+    <td><b class="Fl" title="Fl">-T</b></td>
   </tr>
 </table>
 <h1 class="Sh" title="Sh" id="DESCRIPTION"><a class="selflink" href="#DESCRIPTION">DESCRIPTION</a></h1>
@@ -42,7 +76,7 @@
 A seed is read off the system random device; and corresponding seed words are
   printed to standard output.
 <div class="Pp"></div>
-The options are as follows:
+In general usage, the options are as follows:
 <dl class="Bl-tag" style="margin-left: 23.40ex;">
   <dt class="It-tag" style="margin-left: -23.40ex;"><a class="selflink" href="#b"><b class="Fl" title="Fl" id="b">-b</b></a>
     <var class="Ar" title="Ar">bits</var></dt>
@@ -89,6 +123,32 @@ The options are as follows:
       <b class="Sy" title="Sy">The actual length of keymat provided must match
       the specified number of bits.</b> Use <i class="Pa" title="Pa">-</i> to
       specify standard input.</dd>
+  <dt class="It-tag" style="margin-left: -23.40ex;"><a class="selflink" href="#l"><b class="Fl" title="Fl" id="l">-l</b></a>
+    <var class="Ar" title="Ar">lang</var></dt>
+  <dd class="It-tag">Produce a mnemonic in the language or writing system
+      <var class="Ar" title="Ar">lang</var>. The language may be specified via
+      various identifiers as listed by the <b class="Fl" title="Fl">-L</b>
+      option. In alphabetical order, currently supported languages and writing
+      systems are Chinese (Simplified), Chinese (Traditional), English, French,
+      Italian, Japanese, Korean, and Spanish. The default language is
+    English.</dd>
+</dl>
+<div class="Pp"></div>
+The following modes do not produce a mnemonic phrase:
+<dl class="Bl-tag" style="margin-left: 23.40ex;">
+  <dt class="It-tag" style="margin-left: -23.40ex;"><a class="selflink" href="#L"><b class="Fl" title="Fl" id="L">-L</b></a></dt>
+  <dd class="It-tag">List languages and writing systems which may be used with
+      the <b class="Fl" title="Fl">-l</b> <var class="Ar" title="Ar">lang</var>
+      option, then exit. Any of the listed strings may be used as an
+    identifier.</dd>
+  <dt class="It-tag" style="margin-left: -23.40ex;"><a class="selflink" href="#P"><b class="Fl" title="Fl" id="P">-P</b></a></dt>
+  <dd class="It-tag">Print the wordlist to stdout in the source format used at
+      build time, and print the SHA-256 hash of the wordlist to stderr; then
+      exit.</dd>
+  <dt class="It-tag" style="margin-left: -23.40ex;"><a class="selflink" href="#T"><b class="Fl" title="Fl" id="T">-T</b></a></dt>
+  <dd class="It-tag">Run a full battery of self-tests with verbose results
+      printed to stdout, then exit. An abbreviated self-test is run each and
+      every time the <b class="Nm" title="Nm">easyseed</b> utility is used.</dd>
 </dl>
 <h1 class="Sh" title="Sh" id="EXIT_STATUS"><a class="selflink" href="#EXIT_STATUS">EXIT
   STATUS</a></h1>
@@ -99,6 +159,11 @@ Generate a 24-word mnemonic representing a 256-bit random seed:
 <div class="Pp"></div>
 <div class="D1"><code class="Li">umask 077</code></div>
 <div class="D1"><code class="Li">easyseed -b 256 &gt; myseed.txt</code></div>
+<div class="Pp"></div>
+Generate an 18-word mnemonic in the Japanese language, representing a 192-bit
+  random seed:
+<div class="Pp"></div>
+<div class="D1"><code class="Li">easyseed -b 192 -l japanese</code></div>
 <div class="Pp"></div>
 Use bits from a keyfile:
 <div class="D1"><code class="Li">dd if=/dev/random of=secret.key bs=32
@@ -126,11 +191,20 @@ Most users are apparently still generating airgap seed phrases with
   impossible from within Javascript. Users should use the
   <b class="Nm" title="Nm">easyseed</b> utility instead.
 <h1 class="Sh" title="Sh" id="BUGS"><a class="selflink" href="#BUGS">BUGS</a></h1>
-Thus far, only English-language seed phrases are supported. A future version
-  will add support for all languages which have official wordlists in the
-  Bitcoin BIP repository. To add your language to the
-  <b class="Nm" title="Nm">easyseed</b> utility, add a wordlist for your
-  language to the BIP 39 wordlist set.
+Language support is necessarily finite. The
+  <b class="Nm" title="Nm">easyseed</b> utility supports all languages which
+  have official BIP 39 wordlists in the Bitcoin BIP repository. To add your
+  language to the <b class="Nm" title="Nm">easyseed</b> utility, add a wordlist
+  for your language to the BIP 39 wordlist set.
+<div class="Pp"></div>
+The author monkey-pasted language names from a popular wiki site. If the
+  <b class="Fl" title="Fl">-L</b> option shows an incorrect name for your
+  language, <i class="Em" title="Em">in</i> your language, then please file a
+  bug or contact the author.
+<div class="Pp"></div>
+The short identifiers for the two distinct Chinese writing systems are
+  suboptimal, and inconsistent with reality. Better suggestions would be
+  appreciated.
 <h1 class="Sh" title="Sh" id="SECURITY_CONSIDERATIONS"><a class="selflink" href="#SECURITY_CONSIDERATIONS">SECURITY
   CONSIDERATIONS</a></h1>
 For secure seed phrase generation, it is imperative to use an adequate CSPRNG as
@@ -158,7 +232,7 @@ In proper use on a dedicated airgap machine, this should be of lesser concern
   and memory release.</div>
 <table class="foot">
   <tr>
-    <td class="foot-date">December 29, 2017</td>
+    <td class="foot-date">January 1, 2018</td>
     <td class="foot-os">Bitcoin</td>
   </tr>
 </table>

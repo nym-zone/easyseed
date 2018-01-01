@@ -4,7 +4,19 @@ NAME
      easyseed – Bitcoin BIP 39 mnemonic seed phrase generator
 
 SYNOPSIS
-     easyseed -b bits [-k keyfile]
+     easyseed -b bits [-k keyfile] [-l lang]
+
+              List languages:
+
+     easyseed -L
+
+              Print wordlist:
+
+     easyseed -P [-l lang]
+
+              Full, verbose self-tests:
+
+     easyseed -T
 
 DESCRIPTION
      easyseed is a BIP 39 Bitcoin seed phrase generator which is intended to
@@ -16,7 +28,7 @@ DESCRIPTION
      A seed is read off the system random device; and corresponding seed words
      are printed to standard output.
 
-     The options are as follows:
+     In general usage, the options are as follows:
 
      -b bits            Generate a mnemonic phrase representing a seed with
                         bits bits.  Valid values for bits and the word length
@@ -34,6 +46,29 @@ DESCRIPTION
                         provided must match the specified number of bits. Use
                         - to specify standard input.
 
+     -l lang            Produce a mnemonic in the language or writing system
+                        lang.  The language may be specified via various
+                        identifiers as listed by the -L option.  In
+                        alphabetical order, currently supported languages and
+                        writing systems are Chinese (Simplified), Chinese
+                        (Traditional), English, French, Italian, Japanese,
+                        Korean, and Spanish.  The default language is English.
+
+     The following modes do not produce a mnemonic phrase:
+
+     -L                 List languages and writing systems which may be used
+                        with the -l lang option, then exit.  Any of the listed
+                        strings may be used as an identifier.
+
+     -P                 Print the wordlist to stdout in the source format used
+                        at build time, and print the SHA-256 hash of the
+                        wordlist to stderr; then exit.
+
+     -T                 Run a full battery of self-tests with verbose results
+                        printed to stdout, then exit.  An abbreviated self-
+                        test is run each and every time the easyseed utility
+                        is used.
+
 EXIT STATUS
      The easyseed utility exits 0 on success, and >0 if an error occurs.
 
@@ -42,6 +77,11 @@ EXAMPLES
 
            umask 077
            easyseed -b 256 > myseed.txt
+
+     Generate an 18-word mnemonic in the Japanese language, representing a
+     192-bit random seed:
+
+           easyseed -b 192 -l japanese
 
      Use bits from a keyfile:
            dd if=/dev/random of=secret.key bs=32 count=1
@@ -68,10 +108,18 @@ CAVEATS
      easyseed utility instead.
 
 BUGS
-     Thus far, only English-language seed phrases are supported.  A future
-     version will add support for all languages which have official wordlists
-     in the Bitcoin BIP repository.  To add your language to the easyseed
-     utility, add a wordlist for your language to the BIP 39 wordlist set.
+     Language support is necessarily finite.  The easyseed utility supports
+     all languages which have official BIP 39 wordlists in the Bitcoin BIP
+     repository.  To add your language to the easyseed utility, add a wordlist
+     for your language to the BIP 39 wordlist set.
+
+     The author monkey-pasted language names from a popular wiki site.  If the
+     -L option shows an incorrect name for your language, in your language,
+     then please file a bug or contact the author.
+
+     The short identifiers for the two distinct Chinese writing systems are
+     suboptimal, and inconsistent with reality.  Better suggestions would be
+     appreciated.
 
 SECURITY CONSIDERATIONS
      For secure seed phrase generation, it is imperative to use an adequate
@@ -94,4 +142,4 @@ SECURITY CONSIDERATIONS
      and similar, which have absolutely no control of garbage collection and
      memory release.
 
-Bitcoin                        December 29, 2017                       Bitcoin
+Bitcoin                         January 1, 2018                        Bitcoin

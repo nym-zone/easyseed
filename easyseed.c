@@ -3,7 +3,7 @@
  * PGP: 0xC2E91CD74A4C57A105F6C21B5A00591B2F307E0C
  * Bitcoin: 3NULL3ZCUXr7RDLxXeLPDMZDZYxuaYkCnG
  *
- * Copyright (c) 2017.  All rights reserved.
+ * Copyright (c) 2017-18.  All rights reserved.
  *
  * The Antiviral License (AVL) v0.0.1, with added Bitcoin Consensus Clause:
  *
@@ -52,6 +52,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 #include <err.h>
 
@@ -357,32 +358,67 @@ selftest_wordlists(int T_flag)
 		abort();
 }
 
+static const struct wordlist *
+selectlang(const char *userlang)
+{
+	size_t len, maxlen = 0;
+
+	for (int i = 0; i < sizeof(wordlists)/sizeof(*wordlists); ++i) {
+		len = strlen(wordlists[i].name);
+		maxlen = len > maxlen? len : maxlen;
+	}
+
+	for (int i = 0; i < sizeof(wordlists)/sizeof(*wordlists); ++i)
+		if (strncasecmp(userlang, wordlists[i].name, maxlen) == 0)
+			return (&wordlists[i]);
+
+	for (int i = 0; i < sizeof(wordlists)/sizeof(*wordlists); ++i) {
+		len = strlen(wordlists[i].lname);
+		maxlen = len > maxlen? len : maxlen;
+	}
+
+	/* XXX: I do not trust strncasecmp() here.  Or setlocale() first? */
+	for (int i = 0; i < sizeof(wordlists)/sizeof(*wordlists); ++i)
+		if (strncmp(userlang, wordlists[i].lname, maxlen) == 0)
+			return (&wordlists[i]);
+
+	for (int i = 0; i < sizeof(wordlists)/sizeof(*wordlists); ++i) {
+		len = strlen(wordlists[i].code2);
+		maxlen = len > maxlen? len : maxlen;
+	}
+
+	for (int i = 0; i < sizeof(wordlists)/sizeof(*wordlists); ++i)
+		if (strncasecmp(userlang, wordlists[i].code2, maxlen) == 0)
+			return (&wordlists[i]);
+
+	return (NULL); /* not found */
+}
+
 static void
-printlang(void)
+printlang(FILE *f)
 {
 
-	printf("# Available wordlists and selectors:\n");
+	fprintf(f, "# Available wordlists and selectors:\n");
 	for (int i = 0; i < sizeof(wordlists)/sizeof(*wordlists); ++i)
-		printf("\t%s: \"%s\" (%s)\n", wordlists[i].name,
+		fprintf(f, "\t%s: \"%s\" (%s)\n", wordlists[i].name,
 			wordlists[i].lname, wordlists[i].code2);
-
-	exit(1);
 }
 
 int
 main(int argc, char *argv[])
 {
-	int ch, keyfd = -1, error = 0, O_flag = 0, T_flag = 0;
+	int ch, keyfd = -1, error = 0, O_flag = 0, P_flag = 0, T_flag = 0;
 	size_t nbits = 0, nbytes;
 	char *keymat = NULL;
 	ssize_t rbytes, wbytes;
+	const struct wordlist *wl = default_wordlist;
 
 	unsigned char seed[32];
 	char mnemonic[816];
 	size_t len;
 
 	opterr = 0;
-	while ((ch = getopt(argc, argv, ":LOTb:k:")) > -1) {
+	while ((ch = getopt(argc, argv, ":LOPTb:k:l:")) > -1) {
 		switch (ch) {
 		case 'b': /* bits */
 			/* XXX: atoi(), hahah */
@@ -391,8 +427,17 @@ main(int argc, char *argv[])
 		case 'k':
 			keymat = optarg;
 			break;
+		case 'l':
+			if ((wl = selectlang(optarg)) == NULL) {
+				fprintf(stderr, "Unknown language: %s\n",
+					optarg);
+				printlang(stderr);
+				return (1);
+			}
+			break;
 		case 'L':
-			printlang();
+			printlang(stdout);
+			return (0);
 		case 'O':
 			O_flag = 1;
 			break;
@@ -402,6 +447,11 @@ main(int argc, char *argv[])
 		default:
 			errx(1, "Unknown option: -%c", (char)ch);
 		}
+	}
+
+	if (P_flag) {
+		reproduce_wordlist(wl);
+		return (0);
 	}
 
 	switch (nbits) {
@@ -470,7 +520,7 @@ main(int argc, char *argv[])
 		keyfd = -1;
 	}
 
-	mkmnemonic(mnemonic, nbits, seed, english, ascii_space);
+	mkmnemonic(mnemonic, nbits, seed, wl->wordlist, wl->space);
 
 	len = strlen(mnemonic);
 	mnemonic[len] = '\n';
@@ -492,9 +542,16 @@ usage(void)
 {
 
 	fprintf(stderr,
-		"easyseed -b bits [-k file]\n"
-		"Valid values for bits: { 128, 160, 192, 224, 256 }\n"
-		"If give, file length must match bits. \"-\" for stdin.\n"
+		"# General usage:\n"
+		"easyseed -b bits [-k file] [-l lang]\n"
+		"# Valid values for bits: { 128, 160, 192, 224, 256 }\n"
+		"# If given, file length must match bits. \"-\" for stdin.\n"
+		"# List languages:\n"
+		"easyseed -L\n"
+		"# Print wordlist:\n"
+		"easyseed -P [-l lang]\n"
+		"# Full, verbose self-tests:\n"
+		"easyseed -T\n"
 	);
 	exit(1);
 }

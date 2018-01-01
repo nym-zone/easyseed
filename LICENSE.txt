@@ -2,7 +2,7 @@ By nullius <nullius@nym.zone>
 PGP: 0xC2E91CD74A4C57A105F6C21B5A00591B2F307E0C
 Bitcoin: 3NULL3ZCUXr7RDLxXeLPDMZDZYxuaYkCnG
 
-Copyright (c) 2017.  All rights reserved.
+Copyright (c) 2017-18.  All rights reserved.
 
 The Antiviral License (AVL) v0.0.1, with added Bitcoin Consensus Clause:
 

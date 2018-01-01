@@ -1,6 +1,6 @@
-# easyseed
+# easyseed(1)
 
-## The easy mnemonic generator for ![₿](img/bitcoin_32px.png) Bitcoin [BIP 39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrases.
+## The easy, secure *multilanguage* mnemonic generator for ![₿](img/bitcoin_32px.png) Bitcoin [BIP 39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrases.
 
 - By nullius <[nullius@nym.zone](mailto:nullius@nym.zone)>
 - PGP: [0xC2E91CD74A4C57A105F6C21B5A00591B2F307E0C](https://sks-keyservers.net/pks/lookup?op=get&search=0xC2E91CD74A4C57A105F6C21B5A00591B2F307E0C)
@@ -9,6 +9,17 @@
 I wrote this because I needed a lightweight, reliable BIP 39 seed phrase generator with easily auditable sources and minimal dependencies for use on a stripped-down airgap machine.
 
 The source code is written in (mostly sort of) [KNF](https://www.freebsd.org/cgi/man.cgi?query=style&apropos=0&sektion=9&manpath=FreeBSD+11.1-RELEASE+and+Ports&arch=default&format=html).  It’s easy to read, and lovingly commented.  Anybody with basic knowledge of the C programming language should be able to understand what it does at a glance.
+
+**easyseed(1) can generate mnemonics in all languages and writing systems for which a wordlist exists in the [BIP 39 repository](https://github.com/bitcoin/bips/tree/master/bip-0039).**  Listed in alphabetical order:
+
+ - Chinese (Simplified) (汉语)
+ - Chinese (Traditional) (漢語)
+ - English [default]
+ - French (Français)
+ - Italian (Italiano)
+ - Japanese (日本語)
+ - Korean (한국어)
+ - Spanish (Español)
 
 It has been tested on FreeBSD, my main platform, and on Linux.  [Unfortunately, I may have slightly mussed the BSD building while preparing for publication; this should soon be fixed.  The build system generally is still wonky.  This is an early release, with most attention paid to the source code and manpage!]
 

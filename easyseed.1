@@ -2,7 +2,7 @@
 .\" PGP: 0xC2E91CD74A4C57A105F6C21B5A00591B2F307E0C
 .\" Bitcoin: 3NULL3ZCUXr7RDLxXeLPDMZDZYxuaYkCnG
 .\"
-.\" Copyright (c) 2017.  All rights reserved.
+.\" Copyright (c) 2017-18.  All rights reserved.
 .\"
 .\" The Antiviral License (AVL) v0.0.1, with added Bitcoin Consensus Clause:
 .\"
@@ -38,7 +38,7 @@
 .\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 .\" SUCH DAMAGE.
 .\"
-.Dd December 29, 2017
+.Dd January 1, 2018
 .Dt EASYSEED 1
 .Os Bitcoin
 .Sh NAME
@@ -48,6 +48,23 @@
 .Nm
 .Fl b Ar bits
 .Op Fl k Ar keyfile
+.Op Fl l Ar lang
+.Pp
+List languages:
+.Pp
+.Nm
+.Fl L
+.Pp
+Print wordlist:
+.Pp
+.Nm
+.Fl P
+.Op Fl l Ar lang
+.Pp
+Full, verbose self-tests:
+.Pp
+.Nm
+.Fl T
 .Sh DESCRIPTION
 .Nm
 is a BIP 39 Bitcoin seed phrase generator which is intended to be
@@ -60,7 +77,7 @@ run on every use.
 A seed is read off the system random device; and corresponding
 seed words are printed to standard output.
 .Pp
-The options are as follows:
+In general usage, the options are as follows:
 .Bl -tag -width ".Fl d Ar argument"
 .It Fl b Ar bits
 Generate a mnemonic phrase representing a seed with
@@ -87,6 +104,37 @@ Read key material in the form of binary octets from the specified
 Use
 .Pa "-"
 to specify standard input.
+.It Fl l Ar lang
+Produce a mnemonic in the language or writing system
+.Ar lang .
+The language may be specified via various identifiers as listed by the
+.Fl L
+option.
+In alphabetical order, currently supported languages and writing systems are
+Chinese
+.Pq Simplified ,
+Chinese
+.Pq Traditional ,
+English, French, Italian, Japanese, Korean, and Spanish.
+The default language is English.
+.El
+.Pp
+The following modes do not produce a mnemonic phrase:
+.Bl -tag -width ".Fl d Ar argument"
+.It Fl L
+List languages and writing systems which may be used with the
+.Fl l Ar lang
+option, then exit.
+Any of the listed strings may be used as an identifier.
+.It Fl P
+Print the wordlist to stdout in the source format used at build time,
+and print the SHA-256 hash of the wordlist to stderr; then exit.
+.It Fl T
+Run a full battery of self-tests with verbose results printed to stdout,
+then exit.
+An abbreviated self-test is run each and every time the
+.Nm
+utility is used.
 .El
 .Sh EXIT STATUS
 .Ex -std
@@ -95,6 +143,11 @@ Generate a 24-word mnemonic representing a 256-bit random seed:
 .Pp
 .Dl "umask 077"
 .Dl "easyseed -b 256 > myseed.txt"
+.Pp
+Generate an 18-word mnemonic in the Japanese language,
+representing a 192-bit random seed:
+.Pp
+.Dl "easyseed -b 192 -l japanese"
 .Pp
 Use bits from a keyfile:
 .Dl "dd if=/dev/random of=secret.key bs=32 count=1"
@@ -124,17 +177,25 @@ Users should use the
 .Nm
 utility instead.
 .Sh BUGS
-.\" Language support is necessarily finite.
-.\" The
-\." .Nm
-\." utility supports all languages which have official BIP 39
-\." wordlists in the Bitcoin BIP repository.
-Thus far, only English-language seed phrases are supported.
-A future version will add support for all languages which have
-official wordlists in the Bitcoin BIP repository.
+Language support is necessarily finite.
+The
+.Nm
+utility supports all languages which have official BIP 39
+wordlists in the Bitcoin BIP repository.
 To add your language to the
 .Nm
 utility, add a wordlist for your language to the BIP 39 wordlist set.
+.Pp
+The author monkey-pasted language names from a popular wiki site.
+If the
+.Fl L
+option shows an incorrect name for your language,
+.Em in
+your language, then please file a bug or contact the author.
+.Pp
+The short identifiers for the two distinct Chinese writing systems are
+suboptimal, and inconsistent with reality.
+Better suggestions would be appreciated.
 .Sh SECURITY CONSIDERATIONS
 For secure seed phrase generation, it is imperative to use an adequate
 CSPRNG as a source of randomness.

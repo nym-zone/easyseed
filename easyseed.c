@@ -100,6 +100,7 @@ static const struct wordlist wordlists[] =
 	LANG(chinese_simplified,	u8"汉语",	"zh-CN",ascii_space ),
 	LANG(chinese_traditional,	u8"漢語",	"zh-TW",ascii_space ),
 	LANG(french,			u8"Français",	"fr",	ascii_space ),
+	LANG(indonesian,	u8"Bahasa Indonesia",	"id",	ascii_space ),
 	LANG(italian,			u8"Italiano",	"it",	ascii_space ),
 	LANG(japanese,			u8"日本語",	"ja",	u8"\u3000"  ),
 	LANG(korean,			u8"한국어",	"ko",	ascii_space ),

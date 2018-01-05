@@ -7,6 +7,7 @@ WORDLISTS=	chinese_simplified \
 		chinese_traditional \
 		english \
 		french \
+		indonesian \
 		italian \
 		japanese \
 		korean \

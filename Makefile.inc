@@ -13,6 +13,12 @@ WORDLISTS=	chinese_simplified \
 		korean \
 		spanish
 
+VECTORSRC=	mkvectors.sh \
+		vectors.h \
+		vectors.json \
+		test_EN_BIP39.json \
+		test_JP_BIP39.json
+
 #manfmt: $(PROG).$(MANSEC).html $(PROG).$(MANSEC).md $(PROG).$(MANSEC).txt
 manfmt: $(PROG).$(MANSEC).html $(PROG).$(MANSEC).txt
 
@@ -49,6 +55,13 @@ wordlist.h: wordlist/*
 						grep -Eo '^[0-9a-f]+'` ; \
 		} ; \
 	done > $@
+
+#
+# Requires jq.  Also, the shell script is awful.
+# I will check in a "baked" version.
+#
+vectors.c: $(VECTORSRC)
+	./mkvectors.sh > $@
 
 clean:
 	rm -f $(PROG) $(OBJS) wordlist.h \

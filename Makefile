@@ -1,5 +1,6 @@
 CSTD=c11
-LDADD=-lmd
+LDADD=-lmd -lutf8proc
+LDFLAGS+=-L$(.OBJDIR)
 
 SEDRE=-E
 

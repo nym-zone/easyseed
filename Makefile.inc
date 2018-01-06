@@ -19,6 +19,10 @@ VECTORSRC=	mkvectors.sh \
 		test_EN_BIP39.json \
 		test_JP_BIP39.json
 
+libutf8proc.a: utf8proc/utf8proc.[ch] utf8proc/utf8proc_data.c
+	make -C utf8proc libutf8proc.a
+	mv utf8proc/libutf8proc.a $@
+
 #manfmt: $(PROG).$(MANSEC).html $(PROG).$(MANSEC).md $(PROG).$(MANSEC).txt
 manfmt: $(PROG).$(MANSEC).html $(PROG).$(MANSEC).txt
 

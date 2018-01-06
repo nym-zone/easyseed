@@ -1,6 +1,7 @@
 CFLAGS+=-O2 -std=c11
 
-LDADD=-lcrypto
+LDFLAGS+=-L.
+LDADD=-lcrypto -lutf8proc
 
 SEDRE=-r
 
@@ -10,8 +11,8 @@ HASHPROG=sha256sum
 
 include Makefile.inc
 
-easyseed: wordlist.h $(OBJS)
-	cc -o $@ $(OBJS) $(LDADD)
+easyseed: wordlist.h $(OBJS) libutf8proc.a
+	cc $(LDFLAGS) -o $@ $(OBJS) $(LDADD)
 
 install:
 	install $(PROG) /usr/local/bin

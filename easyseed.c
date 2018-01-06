@@ -62,6 +62,8 @@
 #include <openssl/sha.h>
 #endif
 
+#include "utf8proc/utf8proc.h"
+
 /* Changing this will appropriately change the device used: */
 #define	DEV_RANDOM	"/dev/urandom"
 
@@ -136,6 +138,17 @@ zeroize(void *buf, size_t len)
 	memset(buf, 0, len);
 	write(nullfd, buf, len);
 }
+
+static void
+zfree(char *str)
+{
+	size_t len;
+
+	len = strlen(str) + 1;
+	zeroize(str, len);
+	free(str);
+}
+#define	ZFREE(str)	zfree((char *)str)
 
 static void
 addchk(unsigned char *buf, unsigned ent)
@@ -268,29 +281,43 @@ mkmnemonic(char *phrase, unsigned nbits, const unsigned char *seed,
 	zeroize(idx, sizeof(idx));
 }
 
+/*
+ * utf8proc_map() is used directly instead of the utf8proc_NFKD() convenience
+ * wrapper, so that we can get an error code if something goes wrong.
+ *
+ * The returned pointer was obtained from malloc(), and must be free()ed.
+ */
+const char *
+norm_nfkd(const char *str)
+{
+	ssize_t len;
+	const char *normalized;
+
+	/* XXX character sign; sorting out the utf8 char type is TODO */
+	len = utf8proc_map((const utf8proc_uint8_t *)str, 0,
+		(unsigned char **)&normalized,
+		UTF8PROC_DECOMPOSE | UTF8PROC_COMPAT |
+		UTF8PROC_STABLE | UTF8PROC_NULLTERM);
+
+	if (len < 0) {
+		fprintf(stderr, "easyseed: %s\n", utf8proc_errmsg(len));
+		return (NULL);
+	}
+
+	return (normalized);
+}
+
 static void
 selftest(int T_flag)
 {
 	char mnemonic[816];
+	const char *m[2];
 	unsigned errors = 0, total_tests = 0;
 	FILE *f;
 
 	f = T_flag? stdout : stderr;
 
-	/*
-	 * XXX: In the Japanese test vectors, the mnemonics are quite properly
-	 * not normalized to Unicode NFKD.  Thus, string comparison will fail
-	 * without normalization.  (Good job, Japanese test vector designer!)
-	 * Currently, 22 of the Japanese tests fail:  Those with indices of
-	 * 0-7, 9, 10, 12-23.  Japanese tests 8 and 11 succeed.
-	 *
-	 * This will be re-enabled when normalization is added.
-	 */
-#ifdef notyet
 	for (size_t lang = 0; lang < ntestlangs; ++lang) {
-#else
-	for (size_t lang = 0; lang < 1; ++lang) {
-#endif
 		const char **wl = NULL;
 		const char *spacechar = NULL;
 
@@ -307,17 +334,23 @@ selftest(int T_flag)
 			++total_tests;
 			mkmnemonic(mnemonic, testvec[lang].v[i].bits,
 				testvec[lang].v[i].entropy, wl, spacechar);
-			if (strcmp(mnemonic, testvec[lang].v[i].mnemonic) != 0){
+			m[0] = norm_nfkd(mnemonic);
+			m[1] = norm_nfkd(testvec[lang].v[i].mnemonic);
+			if (m[0] == NULL || m[1] == NULL)
+				abort(); /* That's a bad test failure! */
+			if (strcmp(m[0], m[1]) != 0) {
 				++errors;
 				/* XXX types */
 				fprintf(f, "Failed %s self-test %u.\n",
 					testvec[lang].lang, (unsigned)i);
-				fprintf(f, "%s\n%s\n", mnemonic,
-					testvec[lang].v[i].mnemonic);
+				fprintf(f, "%s\n%s\n%s\n%s\n", mnemonic, m[0],
+					testvec[lang].v[i].mnemonic, m[1]);
 			} else if (T_flag)
 				fprintf(f, "Success %s[%u]: \"%s\"\n",
 					testvec[lang].lang,
 					(unsigned)i, mnemonic);
+			ZFREE(m[0]);
+			ZFREE(m[1]);
 		}
 	}
 	if (errors) {

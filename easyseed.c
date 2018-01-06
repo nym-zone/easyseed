@@ -401,6 +401,8 @@ printlang(FILE *f)
 
 	fprintf(f, "# Available wordlists and selectors:\n");
 	for (int i = 0; i < sizeof(wordlists)/sizeof(*wordlists); ++i)
+		/* XXX: Indonesian not yet supported/documented. */
+		if (strncmp(wordlists[i].code2, "id", 2) != 0)
 		fprintf(f, "\t%s: \"%s\" (%s)\n", wordlists[i].name,
 			wordlists[i].lname, wordlists[i].code2);
 }

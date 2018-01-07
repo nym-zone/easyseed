@@ -44,12 +44,14 @@
 #define	_POSIX_C_SOURCE	200809L
 #endif
 
+#include <sys/types.h>
 #include <fcntl.h>
 #include <unistd.h>
 
 #include <assert.h>
 #include <errno.h>
 #include <limits.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -66,6 +68,7 @@
 #endif /*wishlist: deprecate OpenSSL */
 
 #include <openssl/sha.h>
+#include <openssl/hmac.h>
 #include <openssl/evp.h>
 
 #include "utf8proc/utf8proc.h"
@@ -120,6 +123,66 @@ static const struct wordlist wordlists[] =
 static const struct wordlist *default_wordlist = &wordlists[0];
 
 #include "vectors.h"
+
+			/* BIP 32 standard: */
+static const uint8_t	xprv_ver[4] = { 0x04, 0x88, 0xad, 0xe4 },
+			xpub_ver[4] = { 0x04, 0x88, 0xb2, 0x1e },
+			tprv_ver[4] = { 0x04, 0x35, 0x83, 0x94 },
+			tpub_ver[4] = { 0x04, 0x35, 0x87, 0xcf },
+			/* Electrum Extensions: */
+			/* Segwit P2WPKH-nested-in-P2SH: */
+			yprv_ver[4] = { 0x04, 0x9d, 0x78, 0x78 },
+			ypub_ver[4] = { 0x04, 0x9d, 0x7c, 0xb2 },
+			/* Segwit P2WPKH native: */
+			zprv_ver[4] = { 0x04, 0xb2, 0x43, 0x0c },
+			zpub_ver[4] = { 0x04, 0xb2, 0x47, 0x46 },
+			/* Segwit P2WSH-nested-in-P2SH (unsupported): */
+			Yprv_ver[4] = { 0x02, 0x95, 0xb0, 0x05 },
+			Ypub_ver[4] = { 0x02, 0x95, 0xb4, 0x3f },
+			/* Segwit P2WSH native (unsupported): */
+			Zprv_ver[4] = { 0x02, 0xaa, 0x7a, 0x99 },
+			Zpub_ver[4] = { 0x02, 0xaa, 0x7e, 0xd3 };
+
+struct xprv_type {
+	const char *prv_str;
+	const uint8_t *prv_ver;
+	const char *pub_str;
+	const uint8_t *pub_ver;
+};
+
+struct xprv_type_selector {
+	const char *key;
+	const struct xprv_type *type;
+};
+
+static const struct xprv_type xprv_type[] = {
+	{ "xprv", xprv_ver, "xpub", xpub_ver }, /*[0]*/
+	{ "tprv", tprv_ver, "tpub", tpub_ver }, /*[1]*/
+	{ "yprv", yprv_ver, "ypub", ypub_ver }, /*[2]*/
+	{ "zprv", zprv_ver, "zpub", zpub_ver }, /*[3]*/
+};
+
+/* Keep these sorted by key! */
+static const struct xprv_type_selector xprv_types[] = {
+	{ "1addr",		&xprv_type[0] },
+	{ "3addr",		&xprv_type[2] },
+	{ "bech32",		&xprv_type[3] },
+	{ "bravo charlie",	&xprv_type[3] },
+	{ "p2pkh",		&xprv_type[0] },
+	{ "p2wpkh",		&xprv_type[3] },
+	{ "segwit",		&xprv_type[3] },
+	{ "testnet",		&xprv_type[1] },
+	{ "tprv",		&xprv_type[1] },
+	{ "tpub",		&xprv_type[1] },
+	{ "xprv",		&xprv_type[0] },
+	{ "xpub",		&xprv_type[0] },
+	{ "yprv",		&xprv_type[2] },
+	{ "ypub",		&xprv_type[2] },
+	{ "zprv",		&xprv_type[3] },
+	{ "zpub",		&xprv_type[3] },
+};
+
+static const struct xprv_type *default_xprv = &xprv_type[0];
 
 static int nullfd = -1;
 
@@ -402,11 +465,138 @@ mkseed(unsigned char *seed/*[64]*/,const char *mnemonic, const char *passphrase)
 }
 
 static void
+hmac_sha512(void *h, const void *k, size_t klen, const void *d, size_t dlen)
+{
+	void *t;
+
+	t = HMAC(EVP_sha512(), k, klen, d, dlen, h, NULL);
+
+	if (t == NULL)
+		abort();
+}
+
+static void
+sha256dchk(void *chk /* chr[4] */, const void *data, size_t len)
+{
+	SHA256_CTX ctx;
+	uint8_t hash[32];
+
+	SHA256_Init(&ctx);
+	SHA256_Update(&ctx, data, len);
+	SHA256_Final(hash, &ctx);
+
+	SHA256_Init(&ctx);
+	SHA256_Update(&ctx, hash, sizeof(hash));
+	SHA256_Final(hash, &ctx);
+
+	memcpy(chk, hash, 4);
+
+	zeroize(&ctx, sizeof(ctx));
+	zeroize(hash, sizeof(hash));
+}
+
+/*
+ * base58enc() is adapted from code bearing this notice:
+ *
+ * Copyright 2012-2014 Luke Dashjr
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the standard MIT license.  See COPYING for more details.
+ */
+static int
+base58enc(char *b58, size_t *b58sz, const void *data, size_t binsz)
+{
+	const char b58digits_ordered[] =
+		"123456789ABCDEFGHJKLMNPQRSTUVWXYZ"
+		"abcdefghijkmnopqrstuvwxyz";
+	const uint8_t *bin = data;
+	int carry, error = 0;
+	ssize_t i, j, high, zcount = 0;
+	size_t size;
+
+	while (zcount < binsz && !bin[zcount])
+		++zcount;
+
+	size = (binsz - zcount) * 138 / 100 + 1;
+	uint8_t buf[size];
+	memset(buf, 0, size);
+
+	for (i = zcount, high = size - 1; i < binsz; ++i, high = j) {
+		for (carry = bin[i], j = size - 1; (j > high) || carry; --j) {
+			carry += 256 * buf[j];
+			buf[j] = carry % 58;
+			carry /= 58;
+		}
+	}
+
+	for (j = 0; j < size && !buf[j]; ++j);
+
+	if (*b58sz <= zcount + size - j) {
+		*b58sz = zcount + size - j + 1;
+		error = -1;
+		goto done;
+	}
+
+	if (zcount)
+		memset(b58, '1', zcount);
+	for (i = zcount; j < size; ++i, ++j)
+		b58[i] = b58digits_ordered[buf[j]];
+	b58[i] = '\0';
+	*b58sz = i + 1;
+
+done:
+	zeroize(buf, size);
+	return (error);
+}
+
+/*
+ * BIP 32:
+ */
+static ssize_t
+mkxser(char *xprv /*[113]*/, size_t len, const struct xprv_type *t,
+	const unsigned char *seed /*[64]*/)
+{
+	const char k[] = "Bitcoin seed";
+	uint8_t raw[82],
+		*version	= raw +  0, /*  [4] */
+		*depth		= raw +  4, /*  [1] */
+		*pfingerprint	= raw +  5, /*  [4] */
+		*childnr	= raw +  9, /*  [4] */
+		*chain_code	= raw + 13, /* [32] */
+		*key		= raw + 45, /* [33] */
+		*b58chksum	= raw + 78, /*  [4] */
+		hseed[64];
+	int error;
+
+	hmac_sha512(hseed, k, strlen(k), seed, 64);
+
+	memcpy(version, t->prv_ver, 4);
+	*depth = 0x00; /* master key */
+	memset(pfingerprint, 0, 4); /* master key */
+	memset(childnr, 0, 4); /* master key */
+	memcpy(chain_code, hseed+32, 32);
+	*key = 0x00; /* private key */
+	memcpy(key+1, hseed, 32);
+
+	zeroize(hseed, 64);
+
+	sha256dchk(b58chksum, raw, 78);
+
+	error = base58enc(xprv, &len, raw, sizeof(raw));
+
+	zeroize(raw, sizeof(raw));
+
+	return (!error? len : error);
+}
+
+static void
 selftest(int T_flag)
 {
 	int error = 0;
 	char mnemonic[816];
 	unsigned char seed[64];
+	char xprv[113];
+	ssize_t xbytes;
 	const char *m[2];
 	unsigned m_errors = 0, s_errors = 0, x_errors = 0, total_tests = 0;
 	FILE *f;
@@ -461,13 +651,27 @@ selftest(int T_flag)
 			} else if (T_flag)
 				fprintf(f, "Success %s[%u] seed.\n",
 					testvec[lang].lang, (unsigned)i);
+
+			xbytes = mkxser(xprv, sizeof(xprv), default_xprv, seed);
+			if (xbytes <= 0)
+				abort();
+
+			if (strcmp(xprv, testvec[lang].v[i].bip32_xprv) != 0) {
+				++x_errors;
+				fprintf(f, "Failed %s xprv test %u:\n%s\n%s\n",
+					testvec[lang].lang, (unsigned)i,
+					xprv, testvec[lang].v[i].bip32_xprv);
+			} else if (T_flag)
+				fprintf(f, "Success %s[%u] xprv: %s\n",
+					testvec[lang].lang, (unsigned)i, xprv);
 		}
 	}
 	if (m_errors || s_errors || x_errors) {
 		/* XXX TODO: xprv testing */
-		fprintf(f, "Self-testing failed: %u total tests,"
-				"%u failed mnemonics, %u failed seeds\n",
-			total_tests, m_errors, s_errors);
+		fprintf(f, "Self-testing failed: %u total tests, "
+				"%u failed mnemonics, %u failed seeds, "
+				"%u failed xprvs\n",
+			total_tests, m_errors, s_errors, x_errors);
 		abort();
 	}
 	if (T_flag)

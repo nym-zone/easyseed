@@ -49,6 +49,7 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,11 +57,16 @@
 
 #include <err.h>
 
+#ifdef wishlist
 #ifdef __FreeBSD
 #include <sha256.h>
 #else
 #include <openssl/sha.h>
 #endif
+#endif /*wishlist: deprecate OpenSSL */
+
+#include <openssl/sha.h>
+#include <openssl/evp.h>
 
 #include "utf8proc/utf8proc.h"
 
@@ -149,6 +155,36 @@ zfree(char *str)
 	free(str);
 }
 #define	ZFREE(str)	zfree((char *)str)
+
+/*
+ * Wrapper to help isolate OpenSSL API pain.
+ */
+static int
+PBKDF2_HMAC_SHA512(unsigned char *k, size_t klen,
+	const char *pass, const char *salt, unsigned i)
+{
+	int error;
+	size_t saltlen;
+
+	/*
+	 * OpenSSL specifies an int to pass the size.
+	 * This can never be a problem with the mnemonic phrase; but it
+	 * could theoretically be a problem with the user-entered passphrase.
+	 *
+	 * This is used in the salt (prepended with "mnemonic").
+	 */
+	saltlen = strlen(salt);
+	if (saltlen > INT_MAX)
+		return (-1);
+
+	assert(strlen(pass) <= INT_MAX);
+
+	error = PKCS5_PBKDF2_HMAC(pass, strlen(pass), salt, saltlen, i,
+		EVP_sha512(), klen, k);
+
+	/* OpenSSL inverts proper error returns. */
+	return (error == 1? 0 : -1);
+}
 
 static void
 addchk(unsigned char *buf, unsigned ent)
@@ -307,12 +343,72 @@ norm_nfkd(const char *str)
 	return (normalized);
 }
 
+static int
+mkseed(unsigned char *seed/*[64]*/,const char *mnemonic, const char *passphrase)
+{
+	int error;
+	const char *m, saltpre[] = "mnemonic"; /* Per BIP 39. */
+	char *s, *cur;
+	size_t prelen;
+
+	s = strdup(saltpre);
+	if (s == NULL)
+		return (-1);
+
+	assert(mnemonic != NULL);
+
+	if (passphrase != NULL) {
+		size_t prelen, phraselen;;
+
+		prelen = strlen(saltpre);
+		phraselen = strlen(passphrase);
+
+		cur = realloc(s, prelen + phraselen + 1);
+		if (cur == NULL) {
+			free(s);
+			return (-1);
+		} else
+			s = cur, cur += prelen;
+
+		memcpy(cur, passphrase, phraselen);
+		cur[phraselen] = '\0';
+
+		/*
+		 * XXX: const correctness
+		 * But the behaviour is correct.
+		 */
+		cur = (char*)norm_nfkd(s);
+		ZFREE(s);
+
+		if (cur == NULL)
+			return (-1);
+		else
+			s = cur, cur = NULL;
+	}
+
+	m = norm_nfkd(mnemonic);
+	if (m == NULL) {
+		ZFREE(s);
+		return (-1);
+	}
+
+	/* Per BIP 39 specification: */
+	error = PBKDF2_HMAC_SHA512(seed, 64, m, s, 2048);
+
+	ZFREE(s);
+	ZFREE(m);
+
+	return (error);
+}
+
 static void
 selftest(int T_flag)
 {
+	int error = 0;
 	char mnemonic[816];
+	unsigned char seed[64];
 	const char *m[2];
-	unsigned errors = 0, total_tests = 0;
+	unsigned m_errors = 0, s_errors = 0, x_errors = 0, total_tests = 0;
 	FILE *f;
 
 	f = T_flag? stdout : stderr;
@@ -339,23 +435,39 @@ selftest(int T_flag)
 			if (m[0] == NULL || m[1] == NULL)
 				abort(); /* That's a bad test failure! */
 			if (strcmp(m[0], m[1]) != 0) {
-				++errors;
+				++m_errors;
 				/* XXX types */
-				fprintf(f, "Failed %s self-test %u.\n",
+				fprintf(f, "Failed %s mnemonic self-test %u.\n",
 					testvec[lang].lang, (unsigned)i);
 				fprintf(f, "%s\n%s\n%s\n%s\n", mnemonic, m[0],
 					testvec[lang].v[i].mnemonic, m[1]);
 			} else if (T_flag)
-				fprintf(f, "Success %s[%u]: \"%s\"\n",
+				fprintf(f, "Success %s[%u] mnemonic: \"%s\"\n",
 					testvec[lang].lang,
 					(unsigned)i, mnemonic);
 			ZFREE(m[0]);
 			ZFREE(m[1]);
+
+			error = mkseed(seed, mnemonic,
+				testvec[lang].v[i].passphrase);
+
+			if (error)
+				abort();
+
+			if (memcmp(seed, testvec[lang].v[i].seed, 64) != 0) {
+				++s_errors;
+				fprintf(f, "Failed %s seed self-test %u.\n",
+					testvec[lang].lang, (unsigned)i);
+			} else if (T_flag)
+				fprintf(f, "Success %s[%u] seed.\n",
+					testvec[lang].lang, (unsigned)i);
 		}
 	}
-	if (errors) {
-		fprintf(f, "Self-testing failed: %u/%u tests failed\n",
-			errors, total_tests);
+	if (m_errors || s_errors || x_errors) {
+		/* XXX TODO: xprv testing */
+		fprintf(f, "Self-testing failed: %u total tests,"
+				"%u failed mnemonics, %u failed seeds\n",
+			total_tests, m_errors, s_errors);
 		abort();
 	}
 	if (T_flag)

@@ -39,10 +39,8 @@ make && make check
 
 ...then, `make install` as root (via `sudo` or otherwise).  Other BSDs are probably similar.
 
-Linux:
+Linux (GNUmakefile instead of Makefile):
 
 ```
-make -f Makefile.linux && \
-	make -f Makefile.linux check && \
-	sudo make -f Makefile.linux install
+make && make check && sudo make install
 ```

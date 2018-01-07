@@ -83,14 +83,15 @@ struct wordlist {
 	const char *space;
 	const char **wordlist;
 	const char *hash; /* SHA-256 */
+	int status;
 };
 
 static const char ascii_space[] = " ";
 
 #include "wordlist.h"
 
-#define	LANG(name, lname, code2, space)	\
-	{ #name, lname, code2, space, name, name##_hash }
+#define	LANG(name, lname, code2, space, status)	\
+	{ #name, lname, code2, space, name, name##_hash, status }
 
 /*
  * XXX: BUG: zh-TW and zh-CN are inaccurate descriptors.  HK Chinese use
@@ -107,15 +108,15 @@ static const char ascii_space[] = " ";
  */
 static const struct wordlist wordlists[] =
 {
-	LANG(english,			u8"English",	"en",	ascii_space ),
-	LANG(chinese_simplified,	u8"汉语",	"zh-CN",ascii_space ),
-	LANG(chinese_traditional,	u8"漢語",	"zh-TW",ascii_space ),
-	LANG(french,			u8"Français",	"fr",	ascii_space ),
-	LANG(indonesian,	u8"Bahasa Indonesia",	"id",	ascii_space ),
-	LANG(italian,			u8"Italiano",	"it",	ascii_space ),
-	LANG(japanese,			u8"日本語",	"ja",	u8"\u3000"  ),
-	LANG(korean,			u8"한국어",	"ko",	ascii_space ),
-	LANG(spanish,			u8"Español",	"es",	ascii_space )
+	LANG(english,			u8"English",	"en",	ascii_space, 1),
+	LANG(chinese_simplified,	u8"汉语",	"zh-CN",ascii_space, 1),
+	LANG(chinese_traditional,	u8"漢語",	"zh-TW",ascii_space, 1),
+	LANG(french,			u8"Français",	"fr",	ascii_space, 1),
+	LANG(indonesian,	u8"Bahasa Indonesia",	"id",	ascii_space, 0),
+	LANG(italian,			u8"Italiano",	"it",	ascii_space, 1),
+	LANG(japanese,			u8"日本語",	"ja",	u8"\u3000",  1),
+	LANG(korean,			u8"한국어",	"ko",	ascii_space, 1),
+	LANG(spanish,			u8"Español",	"es",	ascii_space, 1)
 };
 
 #undef LANG
@@ -736,9 +737,10 @@ selftest_wordlists(int T_flag)
 }
 
 static const struct wordlist *
-selectlang(const char *userlang)
+selectlang(const char *userlang, int enable_all)
 {
 	size_t len, maxlen = 0;
+	const struct wordlist *result = NULL;
 
 	for (int i = 0; i < sizeof(wordlists)/sizeof(*wordlists); ++i) {
 		len = strlen(wordlists[i].name);
@@ -746,8 +748,10 @@ selectlang(const char *userlang)
 	}
 
 	for (int i = 0; i < sizeof(wordlists)/sizeof(*wordlists); ++i)
-		if (strncasecmp(userlang, wordlists[i].name, maxlen) == 0)
-			return (&wordlists[i]);
+		if (strncasecmp(userlang, wordlists[i].name, maxlen) == 0) {
+			result = &wordlists[i];
+			goto found;
+		}
 
 	for (int i = 0; i < sizeof(wordlists)/sizeof(*wordlists); ++i) {
 		len = strlen(wordlists[i].lname);
@@ -756,8 +760,10 @@ selectlang(const char *userlang)
 
 	/* XXX: I do not trust strncasecmp() here.  Or setlocale() first? */
 	for (int i = 0; i < sizeof(wordlists)/sizeof(*wordlists); ++i)
-		if (strncmp(userlang, wordlists[i].lname, maxlen) == 0)
-			return (&wordlists[i]);
+		if (strncmp(userlang, wordlists[i].lname, maxlen) == 0) {
+			result = &wordlists[i];
+			goto found;
+		}
 
 	for (int i = 0; i < sizeof(wordlists)/sizeof(*wordlists); ++i) {
 		len = strlen(wordlists[i].code2);
@@ -765,30 +771,33 @@ selectlang(const char *userlang)
 	}
 
 	for (int i = 0; i < sizeof(wordlists)/sizeof(*wordlists); ++i)
-		if (strncasecmp(userlang, wordlists[i].code2, maxlen) == 0)
-			return (&wordlists[i]);
+		if (strncasecmp(userlang, wordlists[i].code2, maxlen) == 0) {
+			result = &wordlists[i];
+			goto found;
+		}
 
 	return (NULL); /* not found */
+found:
+	return ((enable_all || result->status)? result : NULL);
 }
 
 static void
-printlang(FILE *f)
+printlang(FILE *f, int enable_all)
 {
 
 	fprintf(f, "# Available wordlists and selectors:\n");
 	for (int i = 0; i < sizeof(wordlists)/sizeof(*wordlists); ++i)
-		/* XXX: Indonesian not yet supported/documented. */
-		if (strncmp(wordlists[i].code2, "id", 2) != 0)
-		fprintf(f, "\t%s: \"%s\" (%s)\n", wordlists[i].name,
-			wordlists[i].lname, wordlists[i].code2);
+		if (enable_all || wordlists[i].status)
+			fprintf(f, "\t%s: \"%s\" (%s)\n", wordlists[i].name,
+				wordlists[i].lname, wordlists[i].code2);
 }
 
 int
 main(int argc, char *argv[])
 {
-	int ch, keyfd = -1, error = 0, O_flag = 0, P_flag = 0, T_flag = 0;
+	int ch, keyfd = -1, error = 0, mode_flag = '\0', O_flag = 0, W_flag = 0;
 	size_t nbits = 0, nbytes;
-	char *keymat = NULL;
+	char *keymat = NULL, *lang = NULL;
 	ssize_t rbytes, wbytes;
 	const struct wordlist *wl = default_wordlist;
 
@@ -797,8 +806,24 @@ main(int argc, char *argv[])
 	size_t len;
 
 	opterr = 0;
-	while ((ch = getopt(argc, argv, ":LOPTb:k:l:")) > -1) {
+	while ((ch = getopt(argc, argv, ":LOPTWb:k:l:")) > -1) {
 		switch (ch) {
+		case 'L':
+		case 'P':
+		case 'T':
+			mode_flag = ch;
+			break;
+		case 'O': /* undocumented; for .onion */
+			O_flag = 1;
+			break;
+		/*
+		 * -W: Enable all wordlists.
+		 * Undocumented.  For purposes of testing proposed
+		 * wordlists which may be changed or removed.
+		 */
+		case 'W':
+			W_flag = 1;
+			break;
 		case 'b': /* bits */
 			/* XXX: atoi(), hahah */
 			nbits = atoi(optarg);
@@ -807,28 +832,25 @@ main(int argc, char *argv[])
 			keymat = optarg;
 			break;
 		case 'l':
-			if ((wl = selectlang(optarg)) == NULL) {
-				fprintf(stderr, "Unknown language: %s\n",
-					optarg);
-				printlang(stderr);
-				return (1);
-			}
-			break;
-		case 'L':
-			printlang(stdout);
-			return (0);
-		case 'O':
-			O_flag = 1;
-			break;
-		case 'T':
-			T_flag = 1;
+			lang = optarg;
 			break;
 		default:
 			errx(1, "Unknown option: -%c", (char)ch);
 		}
 	}
 
-	if (P_flag) {
+	if (lang != NULL) {
+		if ((wl = selectlang(lang, W_flag)) == NULL) {
+			fprintf(stderr, "Unknown language: %s\n", lang);
+			printlang(stderr, W_flag);
+			return (1);
+		}
+	}
+
+	if (mode_flag == 'L') {
+		printlang(stdout, W_flag);
+		return (0);
+	} else if (mode_flag == 'P') {
 		reproduce_wordlist(wl);
 		return (0);
 	}
@@ -841,16 +863,16 @@ main(int argc, char *argv[])
 			break;
 		/*FALLTHROUGH*/
 	default:
-		if (!T_flag)
+		if (mode_flag != 'T')
 			usage();
 	}
 
 	if ((nullfd = open("/dev/null", O_RDWR)) < 0)
 		err(2, "open() on /dev/null");
 
-	selftest(T_flag);
-	selftest_wordlists(T_flag);
-	if (T_flag)
+	selftest(mode_flag);
+	selftest_wordlists(mode_flag);
+	if (mode_flag == 'T')
 		return (0);
 
 	nbytes = nbits/8;

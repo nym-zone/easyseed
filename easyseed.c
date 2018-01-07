@@ -219,36 +219,6 @@ zfree(char *str)
 }
 #define	ZFREE(str)	zfree((char *)str)
 
-/*
- * Wrapper to help isolate OpenSSL API pain.
- */
-static int
-PBKDF2_HMAC_SHA512(unsigned char *k, size_t klen,
-	const char *pass, const char *salt, unsigned i)
-{
-	int error;
-	size_t saltlen;
-
-	/*
-	 * OpenSSL specifies an int to pass the size.
-	 * This can never be a problem with the mnemonic phrase; but it
-	 * could theoretically be a problem with the user-entered passphrase.
-	 *
-	 * This is used in the salt (prepended with "mnemonic").
-	 */
-	saltlen = strlen(salt);
-	if (saltlen > INT_MAX)
-		return (-1);
-
-	assert(strlen(pass) <= INT_MAX);
-
-	error = PKCS5_PBKDF2_HMAC(pass, strlen(pass), salt, saltlen, i,
-		EVP_sha512(), klen, k);
-
-	/* OpenSSL inverts proper error returns. */
-	return (error == 1? 0 : -1);
-}
-
 static void
 addchk(unsigned char *buf, unsigned ent)
 {
@@ -378,6 +348,36 @@ mkmnemonic(char *phrase, unsigned nbits, const unsigned char *seed,
 
 	zeroize(buf, sizeof(buf));
 	zeroize(idx, sizeof(idx));
+}
+
+/*
+ * Wrapper to help isolate OpenSSL API pain.
+ */
+static int
+PBKDF2_HMAC_SHA512(unsigned char *k, size_t klen,
+	const char *pass, const char *salt, unsigned i)
+{
+	int error;
+	size_t saltlen;
+
+	/*
+	 * OpenSSL specifies an int to pass the size.
+	 * This can never be a problem with the mnemonic phrase; but it
+	 * could theoretically be a problem with the user-entered passphrase.
+	 *
+	 * This is used in the salt (prepended with "mnemonic").
+	 */
+	saltlen = strlen(salt);
+	if (saltlen > INT_MAX)
+		return (-1);
+
+	assert(strlen(pass) <= INT_MAX);
+
+	error = PKCS5_PBKDF2_HMAC(pass, strlen(pass), salt, saltlen, i,
+		EVP_sha512(), klen, k);
+
+	/* OpenSSL inverts proper error returns. */
+	return (error == 1? 0 : -1);
 }
 
 /*

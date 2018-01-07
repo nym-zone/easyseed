@@ -117,7 +117,8 @@ static const struct wordlist wordlists[] =
 	LANG(japanese,			u8"日本語",	"ja",	u8"\u3000",  1),
 	LANG(korean,			u8"한국어",	"ko",	ascii_space, 1),
 	LANG(russian,			u8"Русский",	"ru",	ascii_space, 0),
-	LANG(spanish,			u8"Español",	"es",	ascii_space, 1)
+	LANG(spanish,			u8"Español",	"es",	ascii_space, 1),
+	LANG(ukrainian,			u8"Українська",	"uk",	ascii_space, 0),
 };
 
 #undef LANG

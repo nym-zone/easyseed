@@ -12,7 +12,8 @@ WORDLISTS=	chinese_simplified \
 		japanese \
 		korean \
 		russian \
-		spanish
+		spanish \
+		ukrainian
 
 VECTORSRC=	mkvectors.sh \
 		vectors.h \

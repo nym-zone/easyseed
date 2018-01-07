@@ -5,6 +5,7 @@ OBJS=	$(PROG).o \
 
 WORDLISTS=	chinese_simplified \
 		chinese_traditional \
+		czech \
 		english \
 		french \
 		indonesian \

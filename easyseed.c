@@ -234,13 +234,20 @@ zeroize(void *buf, size_t len)
 }
 
 static void
+sfree(void *buf, size_t len)
+{
+
+	zeroize(buf, len);
+	free(buf);
+}
+
+static void
 zfree(char *str)
 {
 	size_t len;
 
 	len = strlen(str) + 1;
-	zeroize(str, len);
-	free(str);
+	sfree(str, len);
 }
 #define	ZFREE(str)	zfree((char *)str)
 
@@ -373,6 +380,102 @@ mkmnemonic(char *phrase, unsigned nbits, const unsigned char *seed,
 
 	zeroize(buf, sizeof(buf));
 	zeroize(idx, sizeof(idx));
+}
+
+static ssize_t
+newmnemonic(unsigned char **e, char **mnemonic,
+	unsigned nbits, const char *keymat, const struct wordlist *wl)
+{
+	unsigned char *entropy;
+	char *phrase;
+	int keyfd = -1, error = 0;
+	size_t phsize, len, nbytes;
+	ssize_t rbytes;
+
+	nbytes = nbits/8;
+
+	entropy = malloc(nbytes);
+	if (entropy == NULL)
+		return (-1);
+
+	phsize = 816; /* XXX: magic number calculated from wordlists */
+	phrase = malloc(phsize);
+	if (phrase == NULL) {
+		free(entropy);
+		return (-1);
+	}
+
+	/*
+	 * Don't potentially leak the length of the mnemonic by the potential
+	 * presence of heap trash trailing after the part later zeroed by
+	 * sfree(mnemonic, strlen(mnemonic)).
+	 */
+	memset(phrase, 0, phsize);
+
+	/*
+	 * XXX: I know the checks of read() lengths are technically wrong.
+	 * However, if the descriptor cannot give 16-32 bytes at a time,
+	 * something else is wrong.  This will need editing if anybody
+	 * insists on using blocking /dev/random on Linux.
+	 */
+	if (keymat == NULL) {
+		if ((keyfd = open(DEV_RANDOM, O_RDONLY)) < 0) {
+			warn("open(\"" DEV_RANDOM "\")");
+			goto bad;
+		}
+		rbytes = read(keyfd, entropy, nbytes);
+		if (rbytes != nbytes) {
+			warn("read() on random device");
+			goto bad;
+		}
+	} else {
+		unsigned char scratch;
+
+		if (!strcmp(keymat, "-"))
+			keyfd = 0;
+		else
+			if ((keyfd = open(keymat, O_RDONLY)) < 0) {
+				warn("open(\"%s\")", keymat);
+				goto bad;
+			}
+		rbytes = read(keyfd, entropy, nbytes);
+		if (rbytes != nbytes) {
+			warn("read() of key material");
+			goto bad;
+		}
+
+		/* Check for EOF: */
+		rbytes = read(keyfd, &scratch, 1);
+		if (rbytes != 0) {
+			zeroize(&scratch, sizeof(scratch));
+			if (rbytes > 0)
+				warnx(
+				"Provided -k input length mismatches -b bits.");
+			else
+				warn("read() on key file");
+			goto bad;
+		}
+
+	}
+
+	/* XXX: Check close(2) for errors, which is a problem in POSIX: */
+	close(keyfd);
+	keyfd = -1;
+
+	mkmnemonic(phrase, nbits, entropy, wl->wordlist, wl->space);
+
+	len = strlen(phrase);
+
+	assert(len + 1 < phsize);
+
+	*e = entropy;
+	*mnemonic = phrase;
+	return (len);
+
+bad:
+	sfree(entropy, nbytes);
+	sfree(phrase, phsize);
+	return (-1);
 }
 
 /*
@@ -663,6 +766,9 @@ selftest(int T_flag)
 			ZFREE(m[0]);
 			ZFREE(m[1]);
 
+			if (!T_flag)
+				continue;
+
 			error = mkseed(seed, mnemonic,
 				testvec[lang].v[i].passphrase);
 
@@ -950,16 +1056,16 @@ printlang(FILE *f, int enable_all)
 int
 main(int argc, char *argv[])
 {
-	int ch, keyfd = -1, error = 0, mode_flag = '\0',
+	int ch, error = 0, mode_flag = '\0',
 		O_flag = 0, W_flag = 0, p_flag = 0;
 	size_t nbits = 0, nbytes;
 	char *keymat = NULL, *lang = NULL;
-	ssize_t rbytes, wbytes;
+	ssize_t wbytes;
 	const struct wordlist *wl = default_wordlist;
 
-	unsigned char seed[32];
-	char mnemonic[816];
-	size_t len;
+	unsigned char *entropy;
+	char *mnemonic;
+	ssize_t len;
 
 	opterr = 0;
 	while ((ch = getopt(argc, argv, ":LOPTWb:k:l:p")) > -1) {
@@ -1036,53 +1142,10 @@ main(int argc, char *argv[])
 
 	nbytes = nbits/8;
 
-	/*
-	 * XXX: I know the checks of read() lengths are technically wrong.
-	 * However, if the descriptor cannot give 16-32 bytes at a time,
-	 * something else is wrong.  This will need editing if anybody
-	 * insists on using blocking /dev/random on Linux.
-	 */
-	if (keymat == NULL) {
-		if ((keyfd = open(DEV_RANDOM, O_RDONLY)) < 0)
-			err(2, "open(\"" DEV_RANDOM "\")");
-		rbytes = read(keyfd, seed, nbytes);
-		if (rbytes != nbytes)
-			err(2, "read() on random device");
-	} else {
-		unsigned char scratch;
+	len = newmnemonic(&entropy, &mnemonic, nbits, keymat, wl);
+	if (len < 0)
+		errx(2, "easyseed: mnemonic generation failed.");
 
-		if (!strcmp(keymat, "-"))
-			keyfd = 0;
-		else
-			if ((keyfd = open(keymat, O_RDONLY)) < 0)
-				err(2, "open(\"%s\")", keymat);
-		rbytes = read(keyfd, seed, nbytes);
-		if (rbytes != nbytes) {
-			error = errno;
-			zeroize(seed, sizeof(seed));
-			errno = error;
-			err(2, "read() of key material");
-		}
-
-		/* Check for EOF: */
-		rbytes = read(keyfd, &scratch, 1);
-		if (rbytes != 0) {
-			zeroize(seed, sizeof(seed));
-			zeroize(&scratch, sizeof(scratch));
-			if (rbytes > 0)
-				errx(1,
-				"Provided -k input length mismatches -b bits.");
-			else
-				err(2, "read() on key file");
-		}
-
-		close(keyfd);
-		keyfd = -1;
-	}
-
-	mkmnemonic(mnemonic, nbits, seed, wl->wordlist, wl->space);
-
-	len = strlen(mnemonic);
 	mnemonic[len] = '\n';
 	wbytes = write(1, mnemonic, len+1);
 	if (wbytes != len+1) {
@@ -1091,8 +1154,8 @@ main(int argc, char *argv[])
 	}
 	close(1);
 
-	zeroize(mnemonic, sizeof(mnemonic));
-	zeroize(seed, sizeof(seed));
+	sfree(mnemonic, len);
+	sfree(entropy, nbytes);
 
 	return (error);
 }

@@ -45,6 +45,7 @@
 #endif
 
 #include <sys/types.h>
+#include <sys/param.h>
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -71,10 +72,30 @@
 #include <openssl/hmac.h>
 #include <openssl/evp.h>
 
+#if defined(BSD) || defined(HAVE_LIBBSD)
+#include <readpassphrase.h>
+#define DYNPASS
+#endif /* BSD */
+
 #include "utf8proc/utf8proc.h"
 
 /* Changing this will appropriately change the device used: */
 #define	DEV_RANDOM	"/dev/urandom"
+
+/*
+ * This is number of Unicode characters, *not* bytes.  It will permit
+ * a passphrase of more than 24 words in most any language.  Note, the
+ * same limitation will apply to BIP 39 mnemonics entered for key generation.
+ */
+#define	PASSPHRASE_UNICHARS_MAX		256
+/*
+ * This is set to contain PASSPHRASE_UNICHARS_MAX+1 UTF-8 encoded characters,
+ * plus a terminating '\0' or '\n'.  The reason for the extra character is that
+ * readpassphrase(3) does not give a precise idea of length.  To know surely
+ * that a user has entered too many characters, and not the exact maximum,
+ * we must be able to detect one extra character.
+ */
+#define	PASSPHRASE_BUFSIZE		((PASSPHRASE_UNICHARS_MAX + 1) * 4 + 1)
 
 struct wordlist {
 	const char *name;
@@ -739,6 +760,137 @@ selftest_wordlists(int T_flag)
 		abort();
 }
 
+/*
+ * Pass a buflen < 0 to indicate a NUL-terminated string.
+ */
+static int
+validpass(const char *buf, ssize_t buflen)
+{
+	int error = 0;
+	ssize_t len, charcnt, charlen;
+	const utf8proc_uint8_t *cur;
+	utf8proc_int32_t c;
+	const utf8proc_property_t *p;
+
+	len = buflen >= 0? buflen : strlen(buf);
+
+	charcnt = 0;
+	cur = (utf8proc_uint8_t*)buf;
+
+	while (len > 0) {
+		const char *errmsg = NULL;
+
+		charlen = utf8proc_iterate(cur, len, &c);
+		if (charlen < 0) {
+			fprintf(stderr, "easyseed: %s\n", utf8proc_errmsg(len));
+			error = -1;
+			goto done;
+		}
+
+		p = utf8proc_get_property(c);
+
+		switch (p->category) {
+		case UTF8PROC_CATEGORY_CN: /* Unassigned or invalid. */
+			errmsg = "Invalid character, or unassigned in Unicode 9.0";
+			break;
+		case UTF8PROC_CATEGORY_ZL: /* Line separator */
+			errmsg = "Line separator character detected";
+			break;
+		case UTF8PROC_CATEGORY_ZP:
+			errmsg = "Paragraph separator character detected";
+			break;
+		case UTF8PROC_CATEGORY_CC: /* Control character */
+			errmsg = "Control character detected";
+			break;
+		case UTF8PROC_CATEGORY_CF: /* Format character */
+			errmsg = "Format character detected";
+			break;
+		case UTF8PROC_CATEGORY_CS: /* Surrogate */
+			errmsg = "Surrogate character detected";
+			break;
+		/* case UTF8PROC_CATEGORY_CO:  Private use */
+			/* XXX: allow this? */
+		default:
+			;
+		}
+
+		if (errmsg != NULL) {
+			fprintf(stderr, "easyseed: %s.\n", errmsg);
+			error = -1;
+			goto done;
+		}
+
+		assert(len >= charlen);
+
+		++charcnt, cur += charlen, len -= charlen;
+	}
+
+	if (charcnt > PASSPHRASE_UNICHARS_MAX) {
+		error = -1;
+		warnx("The entered string is too long, >= %jd Unicode "
+			"characters (%jd bytes).\nMax Unicode chars: %d",
+			(intmax_t)charcnt, (intmax_t)((const char*)cur - buf),
+			PASSPHRASE_UNICHARS_MAX);
+	}
+
+done:
+	zeroize(&c, sizeof(c));
+	return (error);
+}
+
+static char *
+getpass(char *buf, size_t len)
+{
+#ifdef DYNPASS
+	const char	prompt[] =   "Please enter your passphrase:",
+			reprompt[] = "Please re-enter it to confirm:";
+	char *doublecheck, *cur;
+	size_t rbytes;
+	ssize_t unichar_len;
+	const int flags = RPP_ECHO_OFF | RPP_REQUIRE_TTY;
+	int error;
+
+	doublecheck = malloc(len);
+	if (doublecheck == NULL)
+		return (NULL);
+
+	cur = readpassphrase(prompt, buf, len, flags);
+	if (cur == NULL) {
+		zeroize(buf, len);
+		goto done;
+	}
+
+	error = validpass(buf, -1);
+	if (error) {
+		warnx("Invalid passphrase.");
+		zeroize(buf, len);
+		cur = NULL;
+		goto done;
+	}
+
+	cur = readpassphrase(reprompt, doublecheck, len, flags);
+	if (cur == NULL) {
+		zeroize(buf, len);
+		goto done;
+	}
+
+	if (strncmp(buf, doublecheck, len - 1) != 0) {
+		warnx("The entered passphrases do not match.");
+		cur = NULL;
+		zeroize(buf, len);
+		goto done;
+	}
+
+	cur = buf;
+done:
+	ZFREE(doublecheck);
+	return (cur);
+#else /* !DYNPASS */
+	errx(127, "Support for reading the passphrase from terminal is "
+		"not compiled in.");
+#endif /* DYNPASS */
+}
+
 static const struct wordlist *
 selectlang(const char *userlang, int enable_all)
 {
@@ -798,7 +950,8 @@ printlang(FILE *f, int enable_all)
 int
 main(int argc, char *argv[])
 {
-	int ch, keyfd = -1, error = 0, mode_flag = '\0', O_flag = 0, W_flag = 0;
+	int ch, keyfd = -1, error = 0, mode_flag = '\0',
+		O_flag = 0, W_flag = 0, p_flag = 0;
 	size_t nbits = 0, nbytes;
 	char *keymat = NULL, *lang = NULL;
 	ssize_t rbytes, wbytes;
@@ -809,7 +962,7 @@ main(int argc, char *argv[])
 	size_t len;
 
 	opterr = 0;
-	while ((ch = getopt(argc, argv, ":LOPTWb:k:l:")) > -1) {
+	while ((ch = getopt(argc, argv, ":LOPTWb:k:l:p")) > -1) {
 		switch (ch) {
 		case 'L':
 		case 'P':
@@ -836,6 +989,9 @@ main(int argc, char *argv[])
 			break;
 		case 'l':
 			lang = optarg;
+			break;
+		case 'p':
+			p_flag = 1;
 			break;
 		default:
 			errx(1, "Unknown option: -%c", (char)ch);

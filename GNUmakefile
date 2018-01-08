@@ -3,6 +3,10 @@ CFLAGS+=-O2 -std=c11
 LDFLAGS+=-L.
 LDADD=-lcrypto -lutf8proc
 
+ifdef LBSD
+LDADD+=-lbsd
+endif
+
 SEDRE=-r
 
 all: easyseed

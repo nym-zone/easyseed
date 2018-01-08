@@ -31,7 +31,7 @@ Please direct usage discussion to the [forum thread](https://bitcointalk.org/ind
 
 ## Installation
 
-FreeBSD:
+### FreeBSD:
 
 ```
 make && make check
@@ -39,8 +39,14 @@ make && make check
 
 ...then, `make install` as root (via `sudo` or otherwise).  Other BSDs are probably similar.
 
-Linux (GNUmakefile instead of Makefile):
+### Linux (GNUmakefile instead of Makefile):
 
 ```
 make && make check && sudo make install
+```
+
+To enable passphrase entry, you must have `libbsd` and its headers installed.  (On Debian or Ubuntu, try `sudo apt-get install libbsd-dev`.)  Then to build, type:
+
+```
+make LBSD=1 && make check && sudo make install
 ```

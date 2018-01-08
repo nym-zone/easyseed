@@ -5,6 +5,7 @@ LDADD=-lcrypto -lutf8proc
 
 ifdef LBSD
 LDADD+=-lbsd
+CFLAGS+=-DHAVE_LBSD
 endif
 
 SEDRE=-r

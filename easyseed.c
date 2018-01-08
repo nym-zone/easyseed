@@ -72,8 +72,11 @@
 #include <openssl/hmac.h>
 #include <openssl/evp.h>
 
-#if defined(BSD) || defined(HAVE_LIBBSD)
+#ifdef BSD
 #include <readpassphrase.h>
+#define DYNPASS
+#elif defined(HAVE_LBSD)
+#include <bsd/readpassphrase.h>
 #define DYNPASS
 #endif /* BSD */
 
@@ -997,6 +1000,123 @@ done:
 #endif /* DYNPASS */
 }
 
+static void
+hexenc(char *h, const unsigned char *bin, size_t len)
+{
+	const char hex[16] = "0123456789abcdef";
+
+	while (len > 0) {
+		*h++ = hex[*bin >> 4];
+		*h++ = hex[*bin & 0xf];
+		++bin, --len;
+	}
+	*h = '\0';
+}
+
+static int
+make_all_clean(unsigned nbits, const struct wordlist *wl, const char *keymat,
+	int p_flag, int E_flag)
+{
+	void *buf;
+	size_t buflen;
+	unsigned char *entropy;
+	char *mnemonic;
+	ssize_t mlen;
+	char passbuf[PASSPHRASE_BUFSIZE], *cur, *passphrase = NULL;
+	unsigned char seed[64];
+	char hexbuf[129];
+	char xprv[113];
+	ssize_t xbytes;
+	size_t nbytes;
+	int error = 0;
+
+	if ((buf = malloc((buflen = 65536))) == NULL)
+		return (-1);
+
+	error = setvbuf(stdout, buf, _IOFBF, buflen);
+	if (error) {
+		free(buf);
+		return (-1);
+	}
+
+	if (p_flag) {
+		passphrase = passbuf;
+		cur = getpass(passphrase, PASSPHRASE_BUFSIZE);
+		if (cur == NULL) {
+			free(buf);
+			return (-1);
+		}
+	}
+
+	nbytes = nbits/8;
+
+	mlen = newmnemonic(&entropy, &mnemonic, nbits, keymat, wl);
+	if (mlen < 0) {
+		error = -1;
+		goto done;
+	}
+
+	hexenc(hexbuf, entropy, nbytes);
+	printf("Entropy:\n%s\n\n", hexbuf);
+
+	error = mkseed(seed, mnemonic, passphrase);
+	if (error)
+		goto done2;
+
+	hexenc(hexbuf, seed, sizeof(seed));
+
+	xbytes = mkxser(xprv, sizeof(xprv), default_xprv, seed);
+	if (xbytes < 0) {
+		error = -1;
+		goto done3;
+	}
+
+	printf("Mnemonic:\n%s\n\n", mnemonic);
+	printf("Seed:\n%s\n\n", hexbuf);
+	if (!E_flag)
+		printf("Master Extended Private Key:\n%s\n", xprv);
+	else {
+		printf(	"### Multiple formats of extended private key "
+			"for use with Electrum.\n");
+		printf("### USE ONLY ONE OF THESE!\n\n");
+		printf(u8"Old-style address (“1-Address”):\n%s\n\n", xprv);
+		xbytes = mkxser(xprv, sizeof(xprv), &xprv_type[2], seed);
+		if (xbytes < 0) {
+			error = -1;
+			goto done3;
+		}
+		printf(u8"Segwit backward-compatible "
+			u8"P2WPKH-nested-in-P2SH (“3-Address”):\n%s\n\n", xprv);
+		xbytes = mkxser(xprv, sizeof(xprv), &xprv_type[3], seed);
+		if (xbytes < 0) {
+			error = -1;
+			goto done3;
+		}
+		printf(u8"Segwit Bech32 New/Future Format "
+			u8"(“Bravo Charlie One”):\n%s\n", xprv);
+	}
+
+	error = fflush(stdout);
+	if (error)
+		warn("Unable to write to stdout");
+	else
+		error = fclose(stdout);
+
+done3:
+	zeroize(xprv, sizeof(xprv));
+done2:
+	zeroize(hexbuf, sizeof(hexbuf));
+	zeroize(seed, sizeof(seed));
+done1:
+	sfree(mnemonic, mlen);
+	sfree(entropy, nbytes);
+done:
+	zeroize(passbuf, sizeof(passbuf));
+	sfree(buf, buflen);
+
+	return (error);
+}
+
 static const struct wordlist *
 selectlang(const char *userlang, int enable_all)
 {
@@ -1057,7 +1177,7 @@ int
 main(int argc, char *argv[])
 {
 	int ch, error = 0, mode_flag = '\0',
-		O_flag = 0, W_flag = 0, p_flag = 0;
+		E_flag = 0, O_flag = 0, W_flag = 0, p_flag = 0;
 	size_t nbits = 0, nbytes;
 	char *keymat = NULL, *lang = NULL;
 	ssize_t wbytes;
@@ -1068,12 +1188,16 @@ main(int argc, char *argv[])
 	ssize_t len;
 
 	opterr = 0;
-	while ((ch = getopt(argc, argv, ":LOPTWb:k:l:p")) > -1) {
+	while ((ch = getopt(argc, argv, ":ALEOPTWb:k:l:p")) > -1) {
 		switch (ch) {
+		case 'A':
 		case 'L':
 		case 'P':
 		case 'T':
 			mode_flag = ch;
+			break;
+		case 'E':
+			E_flag = 1;
 			break;
 		case 'O': /* undocumented; for .onion */
 			O_flag = 1;
@@ -1124,7 +1248,7 @@ main(int argc, char *argv[])
 	case 128: case 160: case 192: case 224: case 256:
 		break;
 	case 80:
-		if (O_flag)
+		if (O_flag && mode_flag != 'A')
 			break;
 		/*FALLTHROUGH*/
 	default:
@@ -1135,27 +1259,33 @@ main(int argc, char *argv[])
 	if ((nullfd = open("/dev/null", O_RDWR)) < 0)
 		err(2, "open() on /dev/null");
 
-	selftest(mode_flag);
-	selftest_wordlists(mode_flag);
+	selftest(mode_flag == 'T');
+	selftest_wordlists(mode_flag == 'T');
 	if (mode_flag == 'T')
 		return (0);
 
-	nbytes = nbits/8;
+	if (mode_flag == 'A')
+		error = make_all_clean(nbits, wl, keymat, p_flag, E_flag);
+	else {
+		assert(mode_flag == '\0');
 
-	len = newmnemonic(&entropy, &mnemonic, nbits, keymat, wl);
-	if (len < 0)
-		errx(2, "easyseed: mnemonic generation failed.");
+		nbytes = nbits/8;
 
-	mnemonic[len] = '\n';
-	wbytes = write(1, mnemonic, len+1);
-	if (wbytes != len+1) {
-		error = 2;
-		warn("Failed to write() mnemonic to stdout!");
+		len = newmnemonic(&entropy, &mnemonic, nbits, keymat, wl);
+		if (len < 0)
+			errx(2, "easyseed: mnemonic generation failed.");
+
+		mnemonic[len] = '\n';
+		wbytes = write(1, mnemonic, len+1);
+		if (wbytes != len+1) {
+			error = 2;
+			warn("Failed to write() mnemonic to stdout!");
+		}
+		close(1);
+
+		sfree(mnemonic, len);
+		sfree(entropy, nbytes);
 	}
-	close(1);
-
-	sfree(mnemonic, len);
-	sfree(entropy, nbytes);
 
 	return (error);
 }

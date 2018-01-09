@@ -4,7 +4,7 @@ NAME
      easyseed – Bitcoin BIP 39 mnemonic seed phrase generator
 
 SYNOPSIS
-     easyseed -b bits [-k keyfile] [-l lang]
+     easyseed -b bits [-l lang] [-k keyfile] [-p | -j passfile] [-A]
 
               List languages:
 
@@ -30,9 +30,30 @@ DESCRIPTION
 
      In general usage, the options are as follows:
 
-     -b bits            Generate a mnemonic phrase representing a seed with
-                        bits bits.  Valid values for bits and the word length
-                        they produce are as follows:
+     -A                 Output all basic information for creation and use of a
+                        BIP 39 mnemonic backup to a BIP 32 Hierarchical
+                        Deterministic (HD) wallet.  Information is provided in
+                        a freeform text format which is designed to be
+                        reasonably easy to parse in scripts; however, the
+                        format should not yet be considered stable.  The
+                        information provided:
+
+                        •   The input entropy, as a hexadecimal string.
+
+                        •   The mnemonic phrase corresponding to that entropy.
+
+                        •   The output seed value created through PBKDF2 (with
+                            optional passphrase) as specified by BIP 39, as a
+                            hexadecimal string.
+
+                        •   The BIP 32 “xprv” extended master private key,
+                            generated from the seed value as specified in BIP
+                            32.  See the CAVEATS section before using with
+                            popular light clients.
+
+     -b bits            Required. Generate a mnemonic phrase representing a
+                        seed with bits bits.  Valid values for bits and the
+                        word length they produce are as follows:
 
                         Bits   Words
                         128     12
@@ -41,10 +62,16 @@ DESCRIPTION
                         224     21
                         256     24
 
-     -k keyfile         Read key material in the form of binary octets from
-                        the specified keyfile.  The actual length of keymat
-                        provided must match the specified number of bits. Use
-                        - to specify standard input.
+     -j passfile        Read the optional passphrase from the specified
+                        passfile.  Use - to specify standard input.  Exclusive
+                        of the -p option.
+
+     -k keyfile         Read key material (entropy) in the form of binary
+                        octets from the specified keyfile.  The actual length
+                        of keymat provided must match the specified number of
+                        bits. Use - to specify standard input.  If this option
+                        is not given, then easyseed obtains entropy from the
+                        random(4) device.
 
      -l lang            Produce a mnemonic in the language or writing system
                         lang.  The language may be specified via various
@@ -53,6 +80,13 @@ DESCRIPTION
                         writing systems are Chinese (Simplified), Chinese
                         (Traditional), English, French, Italian, Japanese,
                         Korean, and Spanish.  The default language is English.
+
+     -p                 Use an optional passphrase, obtained from the
+                        terminal.  This is an interactive option; the user
+                        will be prompted to enter the passphrase, then re-
+                        enter it for confirmation.  easyseed will refuse to
+                        proceed if standard input is not a tty(4).  Exclusive
+                        of the -j option.
 
      The following modes do not produce a mnemonic phrase:
 
@@ -90,8 +124,15 @@ EXAMPLES
            easyseed -b 256 -k - < secret.key > myseed.txt
 
 STANDARDS
-     The easyseed utility conforms to Bitcoin BIP 39:
+     The easyseed utility implements all functionality specified by Bitcoin
+     BIP 39:
            https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki.
+
+     It also implements some functionality from utility implements all
+     functionality specified by Bitcoin BIP 32:
+           https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki.
+
+     Nonstandard behaviour may be offered by currently undocumented options.
 
 AUTHORS
      By nullius <nullius@nym.zone>.
@@ -102,6 +143,15 @@ AUTHORS
            bitcoin:3NULL3ZCUXr7RDLxXeLPDMZDZYxuaYkCnG.
 
 CAVEATS
+     The BIP 32 “xprv” output encodes the extended master private key with a
+     depth of 0.  This behaviour is correct and consistent with the BIP 39 and
+     BIP 32 standards.  However, at least one known client, Electrum, will
+     misinterpret this as a depth 3 extended child key, and produce a wallet
+     full of incorrect addresses which do not match the addresses derived from
+     the mnemonic.  This could result in user funds loss.  See Electrum Issue
+     #3671:
+           https://github.com/spesmilo/electrum/issues/3671.
+
      Most users are apparently still generating airgap seed phrases with
      Javascript-based seed phrase generators.  Adequate random number
      generation is impossible from within Javascript.  Users should use the
@@ -130,10 +180,10 @@ SECURITY CONSIDERATIONS
      /dev/random; thus, this is a non-issue.
 
      easyseed performs basic sanitization to zeroize and remove keymat (key
-     material) from memory.  It also uses write(2) to output the seed phrase,
-     so as to avoid any userland buffering in printf(3).  However, this does
-     nothing to prevent secret bits from being left in the memory areas used
-     by the kernel for file or pipe buffers.
+     material) from memory.  It also takes special measures to avoid or clean
+     up any userland buffering in printf(3).  However, this does nothing to
+     prevent secret bits from being left in the memory areas used by the
+     kernel for file or pipe buffers.
 
      In proper use on a dedicated airgap machine, this should be of lesser
      concern than on a multiuser and/or networked system.  easyseed will leave
@@ -142,4 +192,4 @@ SECURITY CONSIDERATIONS
      and similar, which have absolutely no control of garbage collection and
      memory release.
 
-Bitcoin                         January 1, 2018                        Bitcoin
+Bitcoin                         January 9, 2018                        Bitcoin

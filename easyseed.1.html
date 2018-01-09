@@ -28,10 +28,14 @@
   <tr>
     <td><b class="Nm" title="Nm">easyseed</b></td>
     <td><b class="Fl" title="Fl">-b</b> <var class="Ar" title="Ar">bits</var>
-      [<span class="Op"><b class="Fl" title="Fl">-k</b>
-      <var class="Ar" title="Ar">keyfile</var></span>]
       [<span class="Op"><b class="Fl" title="Fl">-l</b>
       <var class="Ar" title="Ar">lang</var></span>]
+      [<span class="Op"><b class="Fl" title="Fl">-k</b>
+      <var class="Ar" title="Ar">keyfile</var></span>]
+      [<span class="Op"><b class="Fl" title="Fl">-p</b> |
+      <b class="Fl" title="Fl">-j</b>
+      <var class="Ar" title="Ar">passfile</var></span>]
+      [<span class="Op"><b class="Fl" title="Fl">-A</b></span>]
     <div class="Pp"></div>
     List languages:</td>
   </tr>
@@ -78,12 +82,33 @@ A seed is read off the system random device; and corresponding seed words are
 <div class="Pp"></div>
 In general usage, the options are as follows:
 <dl class="Bl-tag" style="margin-left: 23.40ex;">
+  <dt class="It-tag" style="margin-left: -23.40ex;"><a class="selflink" href="#A"><b class="Fl" title="Fl" id="A">-A</b></a></dt>
+  <dd class="It-tag">Output all basic information for creation and use of a BIP
+      39 mnemonic backup to a BIP 32 Hierarchical Deterministic (HD) wallet.
+      Information is provided in a freeform text format which is designed to be
+      reasonably easy to parse in scripts; however, the format should not yet be
+      considered stable. The information provided:
+    <ul class="Bl-bullet">
+      <li class="It-bullet">The input entropy, as a hexadecimal string.</li>
+      <li class="It-bullet">The mnemonic phrase corresponding to that
+        entropy.</li>
+      <li class="It-bullet">The output seed value created through PBKDF2 (with
+          optional passphrase) as specified by BIP 39, as a hexadecimal
+        string.</li>
+      <li class="It-bullet">The BIP 32 &#x201C;xprv&#x201D; extended master
+          private key, generated from the seed value as specified in BIP 32.
+        <div class="Sy" style="display: inline; margin-left: 1.00ex;">See the
+          <a class="Sx" title="Sx" href="#CAVEATS">CAVEATS</a> section before
+          using with popular light clients.</div>
+      </li>
+    </ul>
+  </dd>
   <dt class="It-tag" style="margin-left: -23.40ex;"><a class="selflink" href="#b"><b class="Fl" title="Fl" id="b">-b</b></a>
     <var class="Ar" title="Ar">bits</var></dt>
-  <dd class="It-tag">Generate a mnemonic phrase representing a seed with
-      <var class="Ar" title="Ar">bits</var> bits. Valid values for
-      <var class="Ar" title="Ar">bits</var> and the word length they produce are
-      as follows:
+  <dd class="It-tag"><b class="Sy" title="Sy">Required.</b> Generate a mnemonic
+      phrase representing a seed with <var class="Ar" title="Ar">bits</var>
+      bits. Valid values for <var class="Ar" title="Ar">bits</var> and the word
+      length they produce are as follows:
     <div class="Pp"></div>
     <table class="tbl">
       <colgroup>
@@ -116,13 +141,21 @@ In general usage, the options are as follows:
       </tr>
     </table>
   </dd>
+  <dt class="It-tag" style="margin-left: -23.40ex;"><a class="selflink" href="#j"><b class="Fl" title="Fl" id="j">-j</b></a>
+    <var class="Ar" title="Ar">passfile</var></dt>
+  <dd class="It-tag">Read the optional passphrase from the specified
+      <var class="Ar" title="Ar">passfile</var>. Use
+      <i class="Pa" title="Pa">-</i> to specify standard input. Exclusive of the
+      <b class="Fl" title="Fl">-p</b> option.</dd>
   <dt class="It-tag" style="margin-left: -23.40ex;"><a class="selflink" href="#k"><b class="Fl" title="Fl" id="k">-k</b></a>
     <var class="Ar" title="Ar">keyfile</var></dt>
-  <dd class="It-tag">Read key material in the form of binary octets from the
-      specified <var class="Ar" title="Ar">keyfile</var>.
+  <dd class="It-tag">Read key material (entropy) in the form of binary octets
+      from the specified <var class="Ar" title="Ar">keyfile</var>.
       <b class="Sy" title="Sy">The actual length of keymat provided must match
       the specified number of bits.</b> Use <i class="Pa" title="Pa">-</i> to
-      specify standard input.</dd>
+      specify standard input. If this option is not given, then
+      <b class="Nm" title="Nm">easyseed</b> obtains entropy from the
+      <a class="Xr" title="Xr">random(4)</a> device.</dd>
   <dt class="It-tag" style="margin-left: -23.40ex;"><a class="selflink" href="#l"><b class="Fl" title="Fl" id="l">-l</b></a>
     <var class="Ar" title="Ar">lang</var></dt>
   <dd class="It-tag">Produce a mnemonic in the language or writing system
@@ -132,6 +165,13 @@ In general usage, the options are as follows:
       systems are Chinese (Simplified), Chinese (Traditional), English, French,
       Italian, Japanese, Korean, and Spanish. The default language is
     English.</dd>
+  <dt class="It-tag" style="margin-left: -23.40ex;"><a class="selflink" href="#p"><b class="Fl" title="Fl" id="p">-p</b></a></dt>
+  <dd class="It-tag">Use an optional passphrase, obtained from the terminal.
+      This is an interactive option; the user will be prompted to enter the
+      passphrase, then re-enter it for confirmation.
+      <b class="Nm" title="Nm">easyseed</b> will refuse to proceed if standard
+      input is not a <a class="Xr" title="Xr">tty(4)</a>. Exclusive of the
+      <b class="Fl" title="Fl">-j</b> option.</dd>
 </dl>
 <div class="Pp"></div>
 The following modes do not produce a mnemonic phrase:
@@ -174,9 +214,17 @@ or
 <div class="D1"><code class="Li">easyseed -b 256 -k - &lt; secret.key &gt;
   myseed.txt</code></div>
 <h1 class="Sh" title="Sh" id="STANDARDS"><a class="selflink" href="#STANDARDS">STANDARDS</a></h1>
-The <b class="Nm" title="Nm">easyseed</b> utility conforms to Bitcoin
+The <b class="Nm" title="Nm">easyseed</b> utility implements all functionality
+  specified by Bitcoin
   <a class="Lk" title="Lk" href="https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki">BIP
   39</a>.
+<div class="Pp"></div>
+It also implements some functionality from utility implements all functionality
+  specified by Bitcoin
+  <a class="Lk" title="Lk" href="https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki">BIP
+  32</a>.
+<div class="Pp"></div>
+Nonstandard behaviour may be offered by currently undocumented options.
 <h1 class="Sh" title="Sh" id="AUTHORS"><a class="selflink" href="#AUTHORS">AUTHORS</a></h1>
 By <span class="An" title="An">nullius</span>
   &lt;<a class="Mt" title="Mt" href="mailto:nullius@nym.zone">nullius@nym.zone</a>&gt;.
@@ -186,6 +234,17 @@ PGP: <code class="Li">0xC2E91CD74A4C57A105F6C21B5A00591B2F307E0C</code>
 Tips:
   <a class="Lk" title="Lk" href="bitcoin:3NULL3ZCUXr7RDLxXeLPDMZDZYxuaYkCnG">3NULL3ZCUXr7RDLxXeLPDMZDZYxuaYkCnG</a>.
 <h1 class="Sh" title="Sh" id="CAVEATS"><a class="selflink" href="#CAVEATS">CAVEATS</a></h1>
+<div class="Sy" style="display: inline; margin-left: 1.00ex;">The BIP 32
+  &#x201C;xprv&#x201D; output encodes the extended
+  <i class="Em" title="Em">master</i> private key with a depth of 0. This
+  behaviour is correct and consistent with the BIP 39 and BIP 32 standards.
+  However, at least one known client, Electrum, will misinterpret this as a
+  depth 3 extended <i class="Em" title="Em">child</i> key, and produce a wallet
+  full of incorrect addresses which do not match the addresses derived from the
+  mnemonic. This could result in user funds loss. See
+  <a class="Lk" title="Lk" href="https://github.com/spesmilo/electrum/issues/3671">Electrum
+  Issue #3671</a>.</div>
+<div class="Pp"></div>
 Most users are apparently still generating airgap seed phrases with
   Javascript-based seed phrase generators. Adequate random number generation is
   impossible from within Javascript. Users should use the
@@ -212,16 +271,17 @@ For secure seed phrase generation, it is imperative to use an adequate CSPRNG as
   draws randomness off the system's <a class="Xr" title="Xr">random(4)</a>
   device. To avoid blocking on Linux, <b class="Nm" title="Nm">easyseed</b>
   reads off <i class="Pa" title="Pa">/dev/urandom</i>. The author deems this to
-  be adequate. On other reasonable systems, such as FreeBSD,
-  <i class="Pa" title="Pa">/dev/urandom</i> is a symlink to
-  <i class="Pa" title="Pa">/dev/random</i>; thus, this is a non-issue.
+  be adequate. On other reasonable systems, such as
+  <span class="Ux">FreeBSD</span>, <i class="Pa" title="Pa">/dev/urandom</i> is
+  a symlink to <i class="Pa" title="Pa">/dev/random</i>; thus, this is a
+  non-issue.
 <div class="Pp"></div>
 <b class="Nm" title="Nm">easyseed</b> performs basic sanitization to zeroize and
-  remove keymat (key material) from memory. It also uses
-  <a class="Xr" title="Xr">write(2)</a> to output the seed phrase, so as to
-  avoid any userland buffering in <a class="Xr" title="Xr">printf(3)</a>.
-  However, this does nothing to prevent secret bits from being left in the
-  memory areas used by the kernel for file or pipe buffers.
+  remove keymat (key material) from memory. It also takes special measures to
+  avoid or clean up any userland buffering in
+  <a class="Xr" title="Xr">printf(3)</a>. However, this does nothing to prevent
+  secret bits from being left in the memory areas used by the kernel for file or
+  pipe buffers.
 <div class="Pp"></div>
 In proper use on a dedicated airgap machine, this should be of lesser concern
   than on a multiuser and/or networked system.
@@ -232,7 +292,7 @@ In proper use on a dedicated airgap machine, this should be of lesser concern
   and memory release.</div>
 <table class="foot">
   <tr>
-    <td class="foot-date">January 1, 2018</td>
+    <td class="foot-date">January 9, 2018</td>
     <td class="foot-os">Bitcoin</td>
   </tr>
 </table>

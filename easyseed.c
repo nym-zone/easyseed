@@ -434,9 +434,13 @@ newmnemonic(unsigned char **e, char **mnemonic,
 	} else {
 		unsigned char scratch;
 
-		if (!strcmp(keymat, "-"))
+		if (!strcmp(keymat, "-")) {
+			if (isatty(0)) {
+				warnx("Will not read entropy from terminal.");
+				goto bad;
+			}
 			keyfd = 0;
-		else
+		} else
 			if ((keyfd = open(keymat, O_RDONLY)) < 0) {
 				warn("open(\"%s\")", keymat);
 				goto bad;
@@ -947,7 +951,80 @@ done:
 	return (error);
 }
 
-static char *
+static int getpass(char *buf, size_t len);
+
+static int
+passfile(char *buf, size_t len, const char *pfile)
+{
+	int passfd, error;
+	ssize_t rbytes, nbytes;
+	size_t cut;
+	char *cur;
+
+	if (strcmp(pfile, "-") == 0) {
+		if (isatty(0))
+			return (getpass(buf, len));
+		passfd = 0;
+	} else {
+		passfd = open(pfile, O_RDONLY);
+		if (passfd < 0)
+			return (-1);
+	}
+
+	nbytes = 0;
+	cur = buf;
+
+	do {
+		rbytes = read(passfd, cur, len - nbytes);
+		if (rbytes < 0) {
+			if (errno == EINTR)
+				continue;
+			warn("read() on %s", pfile);
+			zeroize(buf, len);
+			close(passfd);
+			return (-1);
+		} else if (rbytes == 0)
+			break;
+
+		nbytes += rbytes, cur += rbytes;
+	} while (nbytes < len);
+
+	/* XXX check errors; problem in POSIX */
+	close(passfd);
+
+	if (nbytes == len) {
+		warnx("passphrase too long (bytes)");
+		zeroize(buf, len);
+		return (-1);
+	} else
+		buf[nbytes] = '\0';
+
+	cur = strchr(buf, '\n');
+	if (cur != NULL) {
+		cut = len - (cur - buf);
+		nbytes -= cut;
+	} else {
+		cut = len - nbytes;
+		cur = buf + nbytes;
+	}
+	/*
+	 * This avoids potential leakage of the length of the passphrase via
+	 * trailing garbage.
+	 *
+	 * It also will implicitly nul-terminate an '\n'-terminated string.
+	 */
+	zeroize(cur, cut);
+
+	error = validpass(buf, -1);
+	if (error) {
+		warnx("Invalid passphrase.");
+		zeroize(buf, len);
+	}
+
+	return (error);
+}
+
+static int
 getpass(char *buf, size_t len)
 {
 #ifdef DYNPASS
@@ -955,17 +1032,17 @@ getpass(char *buf, size_t len)
 			reprompt[] = "Please re-enter it to confirm:";
 	char *doublecheck, *cur;
 	size_t rbytes;
-	ssize_t unichar_len;
 	const int flags = RPP_ECHO_OFF | RPP_REQUIRE_TTY;
 	int error;
 
 	doublecheck = malloc(len);
 	if (doublecheck == NULL)
-		return (NULL);
+		return (-1);
 
 	cur = readpassphrase(prompt, buf, len, flags);
 	if (cur == NULL) {
 		zeroize(buf, len);
+		error = -1;
 		goto done;
 	}
 
@@ -973,27 +1050,26 @@ getpass(char *buf, size_t len)
 	if (error) {
 		warnx("Invalid passphrase.");
 		zeroize(buf, len);
-		cur = NULL;
 		goto done;
 	}
 
 	cur = readpassphrase(reprompt, doublecheck, len, flags);
 	if (cur == NULL) {
 		zeroize(buf, len);
+		error = -1;
 		goto done;
 	}
 
 	if (strncmp(buf, doublecheck, len - 1) != 0) {
 		warnx("The entered passphrases do not match.");
-		cur = NULL;
+		error = -1;
 		zeroize(buf, len);
 		goto done;
 	}
 
-	cur = buf;
 done:
 	ZFREE(doublecheck);
-	return (cur);
+	return (error);
 #else /* !DYNPASS */
 	errx(127, "Support for reading the passphrase from terminal is "
 		"not compiled in.");
@@ -1015,7 +1091,7 @@ hexenc(char *h, const unsigned char *bin, size_t len)
 
 static int
 make_all_clean(unsigned nbits, const struct wordlist *wl, const char *keymat,
-	int p_flag, int E_flag)
+	int p_flag, const char *pfile, int E_flag, int D_flag)
 {
 	void *buf;
 	size_t buflen;
@@ -1039,13 +1115,18 @@ make_all_clean(unsigned nbits, const struct wordlist *wl, const char *keymat,
 		return (-1);
 	}
 
+	assert(!(p_flag && pfile != NULL));
 	if (p_flag) {
 		passphrase = passbuf;
-		cur = getpass(passphrase, PASSPHRASE_BUFSIZE);
-		if (cur == NULL) {
-			free(buf);
-			return (-1);
-		}
+		error = getpass(passphrase, PASSPHRASE_BUFSIZE);
+	} else if (pfile != NULL) {
+		passphrase = passbuf;
+		error = passfile(passphrase, PASSPHRASE_BUFSIZE, pfile);
+	}
+	/* error can only be nonzero if one of these functions failed. */
+	if (error) {
+		free(buf);
+		return (error);
 	}
 
 	nbytes = nbits/8;
@@ -1072,6 +1153,8 @@ make_all_clean(unsigned nbits, const struct wordlist *wl, const char *keymat,
 	}
 
 	printf("Mnemonic:\n%s\n\n", mnemonic);
+	if (D_flag)
+		printf("Passphrase:\n%s\n\n", passphrase);
 	printf("Seed:\n%s\n\n", hexbuf);
 	if (!E_flag)
 		printf("Master Extended Private Key:\n%s\n", xprv);
@@ -1177,9 +1260,9 @@ int
 main(int argc, char *argv[])
 {
 	int ch, error = 0, mode_flag = '\0',
-		E_flag = 0, O_flag = 0, W_flag = 0, p_flag = 0;
+		D_flag = 0, E_flag = 0, O_flag = 0, W_flag = 0, p_flag = 0;
 	size_t nbits = 0, nbytes;
-	char *keymat = NULL, *lang = NULL;
+	char *keymat = NULL, *lang = NULL, *pfile = NULL;
 	ssize_t wbytes;
 	const struct wordlist *wl = default_wordlist;
 
@@ -1188,7 +1271,7 @@ main(int argc, char *argv[])
 	ssize_t len;
 
 	opterr = 0;
-	while ((ch = getopt(argc, argv, ":ALEOPTWb:k:l:p")) > -1) {
+	while ((ch = getopt(argc, argv, ":ADLEOPTWb:j:k:l:p")) > -1) {
 		switch (ch) {
 		case 'A':
 		case 'L':
@@ -1196,8 +1279,15 @@ main(int argc, char *argv[])
 		case 'T':
 			mode_flag = ch;
 			break;
+		case 'D':
+			D_flag = 1;
+			break;
 		case 'E':
+#ifdef ELECTRUM_TEST
 			E_flag = 1;
+#else
+			errx(63, "Unimplemented -E");
+#endif
 			break;
 		case 'O': /* undocumented; for .onion */
 			O_flag = 1;
@@ -1213,6 +1303,9 @@ main(int argc, char *argv[])
 		case 'b': /* bits */
 			/* XXX: atoi(), hahah */
 			nbits = atoi(optarg);
+			break;
+		case 'j':
+			pfile = optarg;
 			break;
 		case 'k':
 			keymat = optarg;
@@ -1234,6 +1327,22 @@ main(int argc, char *argv[])
 			printlang(stderr, W_flag);
 			return (1);
 		}
+	}
+
+	if (mode_flag == 'A') {
+		if (p_flag && pfile != NULL) {
+			warnx(
+	"Passphrase cannot be read from both file (-j) and terminal (-p)");
+			usage();
+		}
+	} else if (p_flag || pfile != NULL) {
+		warnx("No use for passphrase in this mode.");
+		usage();
+	}
+
+	if ((p_flag || (pfile != NULL && strcmp(pfile, "-") == 0)) &&
+		(keymat != NULL && strcmp(keymat, "-") == 0)) {
+		errx(1, "Too many options trying to read from stdin");
 	}
 
 	if (mode_flag == 'L') {
@@ -1265,7 +1374,8 @@ main(int argc, char *argv[])
 		return (0);
 
 	if (mode_flag == 'A')
-		error = make_all_clean(nbits, wl, keymat, p_flag, E_flag);
+		error = make_all_clean(nbits, wl, keymat, p_flag, pfile,
+			E_flag, D_flag);
 	else {
 		assert(mode_flag == '\0');
 
@@ -1296,7 +1406,7 @@ usage(void)
 
 	fprintf(stderr,
 		"# General usage:\n"
-		"easyseed -b bits [-k file] [-l lang]\n"
+		"easyseed -b bits [-k file] [-l lang] [-A [-j passfile | -p]]\n"
 		"# Valid values for bits: { 128, 160, 192, 224, 256 }\n"
 		"# If given, file length must match bits. \"-\" for stdin.\n"
 		"# List languages:\n"

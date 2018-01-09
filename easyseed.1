@@ -38,7 +38,7 @@
 .\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 .\" SUCH DAMAGE.
 .\"
-.Dd January 1, 2018
+.Dd January 9, 2018
 .Dt EASYSEED 1
 .Os Bitcoin
 .Sh NAME
@@ -47,8 +47,10 @@
 .Sh SYNOPSIS
 .Nm
 .Fl b Ar bits
-.Op Fl k Ar keyfile
 .Op Fl l Ar lang
+.Op Fl k Ar keyfile
+.Op Fl p | Fl j Ar passfile
+.Op Fl A
 .Pp
 List languages:
 .Pp
@@ -79,7 +81,37 @@ seed words are printed to standard output.
 .Pp
 In general usage, the options are as follows:
 .Bl -tag -width ".Fl d Ar argument"
+.It Fl A
+Output all basic information for creation and use of a BIP 39 mnemonic backup
+to a BIP 32 Hierarchical Deterministic
+.Pq HD
+wallet.
+Information is provided in a freeform text format which is designed to be
+reasonably easy to parse in scripts; however, the format should not yet be
+considered stable.
+The information provided:
+.Bl -bullet
+.It
+The input entropy, as a hexadecimal string.
+.It
+The mnemonic phrase corresponding to that entropy.
+.It
+The output seed value created through PBKDF2
+.Pq "with optional passphrase"
+as specified by BIP 39, as a hexadecimal string.
+.It
+The BIP 32
+.Dq xprv
+extended master private key, generated from the seed value as specified in
+BIP 32.
+.Bf Sy
+See the
+.Sx CAVEATS
+section before using with popular light clients.
+.Ef
+.El
 .It Fl b Ar bits
+.Sy Required.
 Generate a mnemonic phrase representing a seed with
 .Ar bits
 bits.
@@ -97,13 +129,27 @@ Bits	Words
 224	21
 256	24
 .TE
+.It Fl j Ar passfile
+Read the optional passphrase from the specified
+.Ar passfile .
+Use
+.Pa "-"
+to specify standard input.
+Exclusive of the
+.Fl p
+option.
 .It Fl k Ar keyfile
-Read key material in the form of binary octets from the specified
+Read key material (entropy) in the form of binary octets from the specified
 .Ar keyfile .
 .Sy The actual length of keymat provided must match the specified number of bits.
 Use
 .Pa "-"
 to specify standard input.
+If this option is not given, then
+.Nm
+obtains entropy from the
+.Xr random 4
+device.
 .It Fl l Ar lang
 Produce a mnemonic in the language or writing system
 .Ar lang .
@@ -117,6 +163,16 @@ Chinese
 .Pq Traditional ,
 English, French, Italian, Japanese, Korean, and Spanish.
 The default language is English.
+.It Fl p
+Use an optional passphrase, obtained from the terminal.
+This is an interactive option; the user will be prompted to enter the
+passphrase, then re-enter it for confirmation.
+.Nm
+will refuse to proceed if standard input is not a
+.Xr tty 4 .
+Exclusive of the
+.Fl j
+option.
 .El
 .Pp
 The following modes do not produce a mnemonic phrase:
@@ -157,8 +213,14 @@ or
 .Sh STANDARDS
 The
 .Nm
-utility conforms to Bitcoin 
+utility implements all functionality specified by Bitcoin
 .Lk https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki "BIP 39" .
+.Pp
+It also implements some functionality from
+utility implements all functionality specified by Bitcoin
+.Lk https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki "BIP 32" .
+.Pp
+Nonstandard behaviour may be offered by currently undocumented options.
 .Sh AUTHORS
 By
 .An nullius
@@ -170,6 +232,23 @@ PGP:
 Tips:
 .Lk bitcoin:3NULL3ZCUXr7RDLxXeLPDMZDZYxuaYkCnG 3NULL3ZCUXr7RDLxXeLPDMZDZYxuaYkCnG .
 .Sh CAVEATS
+.Bf Sy
+The BIP 32
+.Dq xprv
+output encodes the extended
+.Em master
+private key with a depth of 0.
+This behaviour is correct and consistent with the BIP 39 and BIP 32 standards.
+However, at least one known client, Electrum, will misinterpret this as
+a depth 3 extended
+.Em child
+key, and produce a wallet full of incorrect addresses which do not match the
+addresses derived from the mnemonic.
+This could result in user funds loss.
+See
+.Lk https://github.com/spesmilo/electrum/issues/3671 "Electrum Issue #3671" .
+.Ef
+.Pp
 Most users are apparently still generating airgap seed phrases with
 Javascript-based seed phrase generators.
 Adequate random number generation is impossible from within Javascript.
@@ -211,7 +290,8 @@ To avoid blocking on Linux,
 reads off
 .Pa /dev/urandom .
 The author deems this to be adequate.
-On other reasonable systems, such as FreeBSD,
+On other reasonable systems, such as
+.Fx ,
 .Pa /dev/urandom
 is a symlink to
 .Pa /dev/random ;
@@ -220,9 +300,7 @@ thus, this is a non-issue.
 .Nm
 performs basic sanitization to zeroize and remove keymat (key material)
 from memory.
-It also uses
-.Xr write 2
-to output the seed phrase, so as to avoid any userland buffering in
+It also takes special measures to avoid or clean up any userland buffering in
 .Xr printf 3 .
 However, this does nothing to prevent secret bits from being left
 in the memory areas used by the kernel for file or pipe buffers.

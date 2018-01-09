@@ -1,12 +1,19 @@
 # easyseed(1)
 
-## The easy, secure *multilanguage* mnemonic generator for ![₿](img/bitcoin_32px.png) Bitcoin [BIP 39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrases.
+## The easy, secure *multilanguage* mnemonic phrase and seed generator for ![₿](img/bitcoin_32px.png) Bitcoin [BIP 39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki)
+
+### Now with full BIP 39 functionality
 
 - By nullius <[nullius@nym.zone](mailto:nullius@nym.zone)>
 - PGP: [0xC2E91CD74A4C57A105F6C21B5A00591B2F307E0C](https://sks-keyservers.net/pks/lookup?op=get&search=0xC2E91CD74A4C57A105F6C21B5A00591B2F307E0C)
 - Bitcoin, tips welcome: [3NULL3ZCUXr7RDLxXeLPDMZDZYxuaYkCnG](bitcoin:3NULL3ZCUXr7RDLxXeLPDMZDZYxuaYkCnG)
 
-I wrote this because I needed a lightweight, reliable BIP 39 seed phrase generator with easily auditable sources and minimal dependencies for use on a stripped-down airgap machine.
+I originally wrote this because I needed a lightweight, reliable BIP 39 mnemonic phrase generator with easily auditable sources and minimal dependencies for use on a stripped-down airgap machine.  Correctness and reliability are important to me; thus, **easyseed(1)** has extensive built-in self-tests against the official test vectors.  In addition to simple mnemonic generation, **easyseed(1)** can now optionally output:
+
+- The input entropy in hexadecimal
+- The mnemonic corresponding to that entropy
+- The BIP 39 output seed, optionally generated with an additional passphrase
+- The BIP 32 `xprv` master extended private key (*[do not use with Electrum](https://github.com/spesmilo/electrum/issues/3671)*)
 
 The source code is written in (mostly sort of) [KNF](https://www.freebsd.org/cgi/man.cgi?query=style&apropos=0&sektion=9&manpath=FreeBSD+11.1-RELEASE+and+Ports&arch=default&format=html).  It’s easy to read, and lovingly commented.  Anybody with basic knowledge of the C programming language should be able to understand what it does at a glance.
 
